@@ -1,0 +1,13 @@
+[package]
+name = "unit2-game1"
+version = "0.1.0"
+authors = ["Adam Guo", "Ziang Xue", "Gleb Tebaykin"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pixels = "0.2.0"
+winit = "0.22.0"
+winit_input_helper = "0.6.0"
+image = "0.23.12"
