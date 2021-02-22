@@ -16,7 +16,7 @@ use screen::Screen;
 // Collision will have our collision bodies and contact types
 mod collision;
 // Lazy glob imports
-use collision::*;
+use collision::{Contact, Mobile, Projectile, Terrain};
 // Texture has our image loading and processing stuff
 mod texture;
 use texture::Texture;
@@ -38,6 +38,9 @@ struct GameState {
     animations: Vec<Animation>,
     textures: Vec<Rc<Texture>>,
     sprites: Vec<Sprite>,
+    terrains: Vec<Terrain>,
+    mobiles: Vec<Mobile>,
+    projs: Vec<Projectile>,
 }
 // seconds per frame
 const DT: f64 = 1.0 / 60.0;
@@ -79,6 +82,9 @@ fn main() {
             Vec2i(90, 200),
         )],
         textures: vec![tex],
+        terrains: vec![],
+        mobiles: vec![],
+        projs: vec![],
     };
     // How many frames have we simulated?
     let mut frame_count: usize = 0;
@@ -170,8 +176,13 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     // Update player position
 
     // Detect collisions: Generate contacts
+    let mut contacts: Vec<Contact> = vec![];
+    collision::gather_contacts(&state.terrains, &state.mobiles, &state.projs, &mut contacts);
 
     // Handle collisions: Apply restitution impulses.
+    for contact in contacts.iter() {
+        let colliders = (contact.b, contact.a);
+    }
 
     // Update game rules: What happens when the player touches things?
 }

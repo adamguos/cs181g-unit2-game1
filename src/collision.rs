@@ -23,7 +23,7 @@ enum ColliderID {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-struct Contact {
+pub(crate) struct Contact {
     a: ColliderID,
     b: ColliderID,
     mtv: (i32, i32),
@@ -39,7 +39,7 @@ struct Contact {
 /*
    We will mostly be treating terrain as blocks, possibly in rectangle shapes to simplify. It does not need a speed. If with generations it has to move we can constantly change its position based on frame changes.
 */
-struct Terrain {
+pub(crate) struct Terrain {
     rect: Rect,
     durance: usize,
 }
@@ -47,7 +47,7 @@ struct Terrain {
 /*
    Mobiles would need to be able to move freely. We would require its hitbox to be rect.
 */
-struct Mobile {
+pub(crate) struct Mobile {
     rect: Rect,
     vx: i32,
     vy: i32,
@@ -57,7 +57,7 @@ struct Mobile {
 /*
     Projectiles can cross each others and they will only collide with terrains and mobiles. Since we might need it to point clearly the speed should be floats. (subject to change.)
 */
-struct Projectile {
+pub(crate) struct Projectile {
     rect: Rect,
     vx: f64,
     vy: f64,
@@ -88,7 +88,7 @@ fn rect(fb: &mut [u8], r: Rect, c: Color) {
 }
 
 // Here we will be using push() on into, so it can't be a slice
-fn gather_contacts(
+pub(crate) fn gather_contacts(
     terrains: &[Terrain],
     mobiles: &[Mobile],
     projs: &[Projectile],

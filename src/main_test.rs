@@ -179,11 +179,13 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
         state.projs,
         contacts);
     
-    for contact in contacts.iter() {
-        //handle contacts
-    }
 
     // Handle collisions: Apply restitution impulses.
+    for contact in contacts.iter() {
+        match contact {
+
+        }
+    }
 
     // Update game rules: What happens when the player touches things?
 }
