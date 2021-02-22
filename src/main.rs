@@ -22,7 +22,7 @@ mod texture;
 use texture::Texture;
 // Animation will define our animation datatypes and blending or whatever
 mod animation;
-use animation::Animation;
+use animation::{Animation, AnimationSM};
 // Sprite will define our movable sprites
 mod sprite;
 // Lazy glob import, see the extension trait business later for why
@@ -68,33 +68,73 @@ fn main() {
         Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture).unwrap()
     };
     let tex = Rc::new(Texture::with_file(Path::new("content/sample_sprites.jpg")));
+
     // How many frames have we simulated?
     let mut frame_count: usize = 0;
+
     let mut state = GameState {
         // initial game state...
         animations: vec![],
         sprites: vec![Sprite::new(
             &tex,
-            &Rc::new(animation::Animation::new(
+            animation::AnimationSM::new(
                 vec![
-                    Rect {
-                        x: 8,
-                        y: 168,
-                        w: 48,
-                        h: 48,
-                    },
-                    Rect {
-                        x: 72,
-                        y: 168,
-                        w: 48,
-                        h: 48,
-                    },
+                    animation::Animation::new(
+                        vec![
+                            Rect {
+                                x: 8,
+                                y: 168,
+                                w: 48,
+                                h: 48,
+                            },
+                            Rect {
+                                x: 72,
+                                y: 168,
+                                w: 48,
+                                h: 48,
+                            },
+                        ],
+                        vec![30, 30],
+                        frame_count,
+                        true,
+                    ),
+                    animation::Animation::new(
+                        vec![
+                            Rect {
+                                x: 8,
+                                y: 328,
+                                w: 32,
+                                h: 32,
+                            },
+                            Rect {
+                                x: 48,
+                                y: 328,
+                                w: 32,
+                                h: 32,
+                            },
+                            Rect {
+                                x: 89,
+                                y: 333,
+                                w: 23,
+                                h: 25,
+                            },
+                            Rect {
+                                x: 120,
+                                y: 336,
+                                w: 16,
+                                h: 16,
+                            },
+                        ],
+                        vec![15, 15, 15, 15],
+                        frame_count,
+                        false,
+                    ),
                 ],
-                vec![30, 30],
-                true,
-            )),
+                vec![(0, 1, String::from("jump")), (1, 0, String::from(""))],
+                frame_count,
+                0,
+            ),
             Vec2i(90, 100),
-            frame_count,
         )],
         textures: vec![tex],
         terrains: vec![],
@@ -113,7 +153,7 @@ fn main() {
             let mut screen = Screen::wrap(pixels.get_frame(), WIDTH, HEIGHT, DEPTH);
             screen.clear(Rgba(0, 0, 0, 0));
 
-            draw_game(&state, &mut screen, frame_count);
+            draw_game(&mut state, &mut screen, frame_count);
 
             // Flip buffers
             if pixels.render().is_err() {
@@ -154,7 +194,7 @@ fn main() {
     });
 }
 
-fn draw_game(state: &GameState, screen: &mut Screen, frame_count: usize) {
+fn draw_game(state: &mut GameState, screen: &mut Screen, frame_count: usize) {
     // Call screen's drawing methods to render the game state
     screen.clear(Rgba(80, 80, 80, 255));
     screen.rect(
@@ -167,7 +207,7 @@ fn draw_game(state: &GameState, screen: &mut Screen, frame_count: usize) {
         Rgba(128, 0, 0, 255),
     );
     screen.line(Vec2i(0, 150), Vec2i(300, 200), Rgba(0, 128, 0, 255));
-    for s in state.sprites.iter() {
+    for s in state.sprites.iter_mut() {
         screen.draw_sprite(s, frame_count);
     }
 }
@@ -185,6 +225,9 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     }
     if input.key_held(VirtualKeyCode::Down) {
         state.sprites[0].position.1 += 2;
+    }
+    if input.key_pressed(VirtualKeyCode::Space) {
+        state.sprites[0].animation_sm.input("jump", frame);
     }
     // Update player position
 
