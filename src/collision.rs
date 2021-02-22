@@ -1,12 +1,4 @@
-//use alloc::collections;
-//use core::f32;
-use pixels::{Pixels, SurfaceTexture};
-use std::{time::Instant, usize};
-use winit::dpi::PhysicalSize;
-use winit::event::{Event, VirtualKeyCode};
-use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::WindowBuilder;
-use winit_input_helper::WinitInputHelper;
+use crate::types::Rect;
 
 // seconds per frame
 const DT: f64 = 1.0 / 60.0;
@@ -37,14 +29,6 @@ struct Contact {
     mtv: (i32, i32),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct Rect {
-    x: i32,
-    y: i32,
-    w: u16,
-    h: u16,
-}
-
 /*  I think we will be doing level generations, so "mobile" will have the
     ability to move both vertically and horizontally (but for now I assume that
     the player can move horizontally and the enemy can move vetically and
@@ -57,6 +41,7 @@ struct Rect {
 */
 struct Terrain {
     rect: Rect,
+    durance: usize,
 }
 
 /*
@@ -66,6 +51,7 @@ struct Mobile {
     rect: Rect,
     vx: i32,
     vy: i32,
+    durance: usize,
 }
 
 /*
@@ -75,6 +61,7 @@ struct Projectile {
     rect: Rect,
     vx: f64,
     vy: f64,
+    durance: usize,
 }
 
 // pixels gives us an rgba8888 framebuffer
