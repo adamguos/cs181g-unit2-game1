@@ -1,33 +1,39 @@
+use crate::animation::Animation;
 use crate::texture::Texture;
-use crate::types::{Rect, Vec2i};
+use crate::types::Vec2i;
 use std::rc::Rc;
 
 pub struct Sprite {
     image: Rc<Texture>,
-    pub frame: Rect, // Maybe better to use a type that can't have a negative origin
-    // Or use =animation:Animation= instead of a frame field
+    pub animation: Rc<Animation>,
     pub position: Vec2i,
+    start_frame: usize,
 }
 
 impl Sprite {
-    pub fn new(image: &Rc<Texture>, frame: Rect, position: Vec2i) -> Self {
+    pub fn new(
+        image: &Rc<Texture>,
+        animation: &Rc<Animation>,
+        position: Vec2i,
+        start_frame: usize,
+    ) -> Self {
         Self {
             image: Rc::clone(image),
-            frame,
+            animation: Rc::clone(animation),
             position,
+            start_frame,
         }
     }
 }
 
 pub trait DrawSpriteExt {
-    fn draw_sprite(&mut self, s: &Sprite);
+    fn draw_sprite(&mut self, s: &Sprite, cur_frame: usize);
 }
 
 use crate::screen::Screen;
 impl<'fb> DrawSpriteExt for Screen<'fb> {
-    fn draw_sprite(&mut self, s: &Sprite) {
-        // This works because we're only using a public method of Screen here,
-        // and the private fields of sprite are visible inside this module
-        self.bitblt(&s.image, s.frame, s.position);
+    fn draw_sprite(&mut self, s: &Sprite, cur_frame: usize) {
+        let frame = s.animation.current_frame(s.start_frame, cur_frame);
+        self.bitblt(&s.image, frame.clone(), s.position);
     }
 }

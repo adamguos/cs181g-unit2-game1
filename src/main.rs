@@ -68,26 +68,39 @@ fn main() {
         Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture).unwrap()
     };
     let tex = Rc::new(Texture::with_file(Path::new("content/sample_sprites.jpg")));
+    // How many frames have we simulated?
+    let mut frame_count: usize = 0;
     let mut state = GameState {
         // initial game state...
         animations: vec![],
         sprites: vec![Sprite::new(
             &tex,
-            Rect {
-                x: 0,
-                y: 16,
-                w: 16,
-                h: 16,
-            },
-            Vec2i(90, 200),
+            &Rc::new(animation::Animation::new(
+                vec![
+                    Rect {
+                        x: 8,
+                        y: 168,
+                        w: 48,
+                        h: 48,
+                    },
+                    Rect {
+                        x: 72,
+                        y: 168,
+                        w: 48,
+                        h: 48,
+                    },
+                ],
+                vec![30, 30],
+                true,
+            )),
+            Vec2i(90, 100),
+            frame_count,
         )],
         textures: vec![tex],
         terrains: vec![],
         mobiles: vec![],
         projs: vec![],
     };
-    // How many frames have we simulated?
-    let mut frame_count: usize = 0;
     // How many unsimulated frames have we saved up?
     let mut available_time = 0.0;
     // Track beginning of play
@@ -100,7 +113,7 @@ fn main() {
             let mut screen = Screen::wrap(pixels.get_frame(), WIDTH, HEIGHT, DEPTH);
             screen.clear(Rgba(0, 0, 0, 0));
 
-            draw_game(&state, &mut screen);
+            draw_game(&state, &mut screen, frame_count);
 
             // Flip buffers
             if pixels.render().is_err() {
@@ -141,7 +154,7 @@ fn main() {
     });
 }
 
-fn draw_game(state: &GameState, screen: &mut Screen) {
+fn draw_game(state: &GameState, screen: &mut Screen, frame_count: usize) {
     // Call screen's drawing methods to render the game state
     screen.clear(Rgba(80, 80, 80, 255));
     screen.rect(
@@ -155,7 +168,7 @@ fn draw_game(state: &GameState, screen: &mut Screen) {
     );
     screen.line(Vec2i(0, 150), Vec2i(300, 200), Rgba(0, 128, 0, 255));
     for s in state.sprites.iter() {
-        screen.draw_sprite(s);
+        screen.draw_sprite(s, frame_count);
     }
 }
 
@@ -181,7 +194,7 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
 
     // Handle collisions: Apply restitution impulses.
     for contact in contacts.iter() {
-        let colliders = (contact.b, contact.a);
+        // let colliders = (contact.b, contact.a);
     }
 
     // Update game rules: What happens when the player touches things?
