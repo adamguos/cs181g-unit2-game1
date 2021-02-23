@@ -205,9 +205,5 @@ fn restitute(statics: &[Terrain], dynamics: &mut [Mobile], contacts: &mut [Conta
 
 fn separating_axis(ax1: i32, ax2: i32, bx1: i32, bx2: i32) -> bool {
     assert!(ax1 <= ax2 && bx1 <= bx2);
-    if ax2 < bx1 || bx2 < ax1 {
-        return true;
-    } else {
-        return false;
-    };
+    ax2 < bx1 || bx2 < ax1
 }
