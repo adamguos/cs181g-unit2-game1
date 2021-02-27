@@ -69,7 +69,7 @@ pub(crate) struct Mobile {
     hp: usize,
 }
 impl Mobile {
-    fn enemy(x:i32,y:i32,hp:usize) -> Self{
+    pub fn enemy(x:i32,y:i32,hp:usize) -> Self{
         Self{
             rect: Rect{
                 x:x,
@@ -82,29 +82,43 @@ impl Mobile {
             hp:50,
         }
     }
+    
+    pub fn player(x:i32,y:i32) ->Self{
+        Self{
+            rect: Rect{
+                x:x,
+                y:y,
+                w:40,
+                h:40,
+            },
+            vx:0,
+            vy:0,
+            hp:100,
+        }
+    }
 }
 
 /*
     Projectiles can cross each others and they will only collide with terrains and mobiles. Since we might need it to point clearly the speed should be floats. (subject to change.)
 */
 pub(crate) struct Projectile {
-    rect: Rect,
+    pub(crate) rect: Rect,
     vx: f64,
     vy: f64,
     hp: usize,
 }
 
 impl Projectile {
-    fn new(from:&Mobile) -> Self {
+    pub(crate) fn new(from:&Mobile) -> Self {
         Self{
             rect: Rect{
                 x:from.rect.x,
-                y:from.rect.y,
+                y:from.rect.y - 10,
                 w:5,
                 h:5,
             },
             vx:0.0,
-            vy:10.0,
+            vy:-10.0,
             hp:10,
         }
     }
@@ -242,7 +256,7 @@ pub(crate) fn gather_contacts(
 /*
 Modify the hp of the objects and remove unnecessary objects.
 */
-fn handle_contact(terrains: &mut Vec<Terrain>,mobiles: &mut Vec<Terrain>, projs: &mut Vec<Projectile>, contacts: &mut Vec<Contact>) -> bool{
+pub(crate) fn handle_contact(terrains: &mut Vec<Terrain>,mobiles: &mut Vec<Mobile>, projs: &mut Vec<Projectile>, contacts: &mut Vec<Contact>) -> bool{
     // We first modify the hp of the collision objects.
     for contact in contacts.iter() {
         match (contact.a,contact.b) {

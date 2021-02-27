@@ -41,12 +41,13 @@ struct GameState {
     terrains: Vec<Terrain>,
     mobiles: Vec<Mobile>,
     projs: Vec<Projectile>,
+    frame_count:usize,
 }
 // seconds per frame
 const DT: f64 = 1.0 / 60.0;
 
-const WIDTH: usize = 320;
-const HEIGHT: usize = 240;
+const WIDTH: usize = 720;
+const HEIGHT: usize = 1280;
 const DEPTH: usize = 4;
 
 fn main() {
@@ -134,13 +135,16 @@ fn main() {
                 frame_count,
                 0,
             ),
-            Vec2i(90, 100),
+            Vec2i(350, 1000),
         )],
         textures: vec![tex],
         terrains: vec![],
         mobiles: vec![],
         projs: vec![],
+        frame_count: 0,
     };
+    let player_model = Mobile::player(350,1000);
+    state.mobiles.push(player_model);
     // How many unsimulated frames have we saved up?
     let mut available_time = 0.0;
     // Track beginning of play
@@ -197,6 +201,7 @@ fn main() {
 fn draw_game(state: &mut GameState, screen: &mut Screen, frame_count: usize) {
     // Call screen's drawing methods to render the game state
     screen.clear(Rgba(80, 80, 80, 255));
+    
     screen.rect(
         Rect {
             x: 100,
@@ -206,13 +211,17 @@ fn draw_game(state: &mut GameState, screen: &mut Screen, frame_count: usize) {
         },
         Rgba(128, 0, 0, 255),
     );
-    screen.line(Vec2i(0, 150), Vec2i(300, 200), Rgba(0, 128, 0, 255));
+    //screen.line(Vec2i(0, 150), Vec2i(300, 200), Rgba(0, 128, 0, 255));
+    for proj in state.projs.iter() {
+        screen.rect(proj.rect, Rgba(0, 128, 0, 255));
+    }
     for s in state.sprites.iter_mut() {
         screen.draw_sprite(s, frame_count);
     }
 }
 
 fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
+    state.frame_count += 1;
     // Player control goes here
     if input.key_held(VirtualKeyCode::Right) {
         state.sprites[0].position.0 += 2;
@@ -236,8 +245,12 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     collision::gather_contacts(&state.terrains, &state.mobiles, &state.projs, &mut contacts);
 
     // Handle collisions: Apply restitution impulses.
-    for contact in contacts.iter() {
-        // let colliders = (contact.b, contact.a);
+    collision::handle_contact(&mut state.terrains, &mut state.mobiles, &mut state.projs, &mut contacts);
+
+    if state.frame_count == 15 {
+        state.frame_count = 0;
+        state.projs.push(Projectile::new(&state.mobiles[0]));
+        println!("pushed a proj.");
     }
 
     // Update game rules: What happens when the player touches things?
