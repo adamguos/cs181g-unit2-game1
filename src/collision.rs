@@ -1,5 +1,6 @@
 use std::cmp::max;
 
+use crate::entity::Entity;
 use crate::types::Rect;
 
 // seconds per frame
@@ -24,6 +25,19 @@ enum ColliderID {
     Projectile(usize),
 }
 
+/*
+#[derive(Clone)]
+pub trait ColliderType {
+    Terrain(Terrain),
+    Mobile(Mobile),
+    Projectile(Projectile),
+}
+*/
+
+pub trait Collider {
+    fn move_pos(&mut self, dx: i32, dy: i32);
+}
+
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub(crate) struct Contact {
     a: ColliderID,
@@ -41,9 +55,16 @@ pub(crate) struct Contact {
 /*
    We will mostly be treating terrain as blocks, possibly in rectangle shapes to simplify. It does not need a speed. If with generations it has to move we can constantly change its position based on frame changes.
 */
-pub(crate) struct Terrain {
-    rect: Rect,
+#[derive(Clone)]
+pub struct Terrain {
+    pub rect: Rect,
     hp: usize,
+}
+impl Collider for Terrain {
+    fn move_pos(&mut self, dx: i32, dy: i32) {
+        self.rect.x += dx;
+        self.rect.y += dy;
+    }
 }
 impl Terrain {
     fn new(x: i32, y: i32) -> Self {
@@ -62,11 +83,18 @@ impl Terrain {
 /*
    Mobiles would need to be able to move freely. We would require its hitbox to be rect.
 */
-pub(crate) struct Mobile {
-    rect: Rect,
+#[derive(Clone)]
+pub struct Mobile {
+    pub rect: Rect,
     vx: i32,
     vy: i32,
     hp: usize,
+}
+impl Collider for Mobile {
+    fn move_pos(&mut self, dx: i32, dy: i32) {
+        self.rect.x += dx;
+        self.rect.y += dy;
+    }
 }
 impl Mobile {
     pub fn enemy(x: i32, y: i32, hp: usize) -> Self {
@@ -96,18 +124,29 @@ impl Mobile {
             hp: 100,
         }
     }
+
+    pub fn move_pos(&mut self, dx: i32, dy: i32) {
+        self.rect.x += dx;
+        self.rect.y += dy;
+    }
 }
 
 /*
     Projectiles can cross each others and they will only collide with terrains and mobiles. Since we might need it to point clearly the speed should be floats. (subject to change.)
 */
-pub(crate) struct Projectile {
+#[derive(Clone)]
+pub struct Projectile {
     pub(crate) rect: Rect,
     vx: f64,
     vy: f64,
     hp: usize,
 }
-
+impl Collider for Projectile {
+    fn move_pos(&mut self, dx: i32, dy: i32) {
+        self.rect.x += dx;
+        self.rect.y += dy;
+    }
+}
 impl Projectile {
     pub(crate) fn new(from: &Mobile) -> Self {
         Self {
@@ -150,13 +189,16 @@ fn rect(fb: &mut [u8], r: Rect, c: Color) {
 // Here we will be using push() on into, so it can't be a slice
 pub(crate) fn gather_contacts(
     terrains: &[Terrain],
-    mobiles: &[Mobile],
+    // mobiles: &[Mobile],
+    mobiles: &[Entity<Mobile>],
     projs: &[Projectile],
     into: &mut Vec<Contact>,
 ) {
     // collide mobiles against mobiles
     for (ai, a) in mobiles.iter().enumerate() {
+        let a = &a.collider;
         for (bi, b) in mobiles.iter().enumerate().skip(ai + 1) {
+            let b = &b.collider;
             if !separating_axis(
                 a.rect.x,
                 a.rect.x + a.rect.w as i32,
@@ -180,6 +222,7 @@ pub(crate) fn gather_contacts(
     }
     // collide mobiles against terrains
     for (ai, a) in mobiles.iter().enumerate() {
+        let a = &a.collider;
         for (bi, b) in terrains.iter().enumerate() {
             if !separating_axis(
                 a.rect.x,
@@ -205,6 +248,7 @@ pub(crate) fn gather_contacts(
     // collide projs against mobiles
     for (ai, a) in projs.iter().enumerate() {
         for (bi, b) in mobiles.iter().enumerate() {
+            let b = &b.collider;
             if !separating_axis(
                 a.rect.x,
                 a.rect.x + a.rect.w as i32,
@@ -257,7 +301,7 @@ Modify the hp of the objects and remove unnecessary objects.
 */
 pub(crate) fn handle_contact(
     terrains: &mut Vec<Terrain>,
-    mobiles: &mut Vec<Mobile>,
+    mobiles: &mut Vec<Entity<Mobile>>,
     projs: &mut Vec<Projectile>,
     contacts: &mut Vec<Contact>,
 ) -> bool {
@@ -268,20 +312,20 @@ pub(crate) fn handle_contact(
             // MT collide will kill the mobile
             // MM collide will destroy the lower hp mobile and cause 30 pt damage to the higher hp mobile
             (ColliderID::Mobile(a), ColliderID::Terrain(b)) => {
-                mobiles[a].hp = 0;
+                mobiles[a].collider.hp = 0;
             }
             (ColliderID::Mobile(a), ColliderID::Mobile(b)) => {
-                if mobiles[a].hp > mobiles[b].hp {
-                    mobiles[b].hp = 0;
-                    mobiles[a].hp = if mobiles[a].hp >= 30 {
-                        mobiles[a].hp - 30
+                if mobiles[a].collider.hp > mobiles[b].collider.hp {
+                    mobiles[b].collider.hp = 0;
+                    mobiles[a].collider.hp = if mobiles[a].collider.hp >= 30 {
+                        mobiles[a].collider.hp - 30
                     } else {
                         0
                     };
                 } else {
-                    mobiles[a].hp = 0;
-                    mobiles[b].hp = if mobiles[b].hp >= 30 {
-                        mobiles[b].hp - 30
+                    mobiles[a].collider.hp = 0;
+                    mobiles[b].collider.hp = if mobiles[b].collider.hp >= 30 {
+                        mobiles[b].collider.hp - 30
                     } else {
                         0
                     };
@@ -296,10 +340,10 @@ pub(crate) fn handle_contact(
                 projs[a].hp = 0;
             }
             (ColliderID::Projectile(a), ColliderID::Mobile(b)) => {
-                if mobiles[b].hp >= projs[a].hp {
-                    mobiles[b].hp -= projs[a].hp;
+                if mobiles[b].collider.hp >= projs[a].hp {
+                    mobiles[b].collider.hp -= projs[a].hp;
                 } else {
-                    mobiles[b].hp = 0;
+                    mobiles[b].collider.hp = 0;
                 }
                 projs[a].hp = 0;
             }
@@ -307,7 +351,7 @@ pub(crate) fn handle_contact(
         }
     }
     terrains.retain(|terrain| terrain.hp > 0);
-    mobiles.retain(|mobile| mobile.hp > 0);
+    mobiles.retain(|mobile| mobile.collider.hp > 0);
     projs.retain(|proj| proj.hp > 0);
     return true;
 }

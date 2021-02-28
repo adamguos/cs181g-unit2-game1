@@ -16,7 +16,10 @@ use screen::Screen;
 // Collision will have our collision bodies and contact types
 mod collision;
 // Lazy glob imports
-use collision::{Contact, Mobile, Projectile, Terrain};
+use collision::{Collider, Contact, Mobile, Projectile, Terrain};
+// Entity struct
+mod entity;
+use entity::Entity;
 // Texture has our image loading and processing stuff
 mod texture;
 use texture::Texture;
@@ -37,12 +40,13 @@ use types::*;
 struct GameState {
     // What data do we need for this game?  Wall positions?
     // Colliders?  Sprites and stuff?
-    animations: Vec<Animation>,
-    textures: Vec<Rc<Texture>>,
-    sprites: Vec<Sprite>,
+    // animations: Vec<Animation>,
+    // textures: Vec<Rc<Texture>>,
+    // sprites: Vec<Sprite>,
     terrains: Vec<Terrain>,
+    // entities: Vec<Entity>,
     tilemaps: Vec<Tilemap>,
-    mobiles: Vec<Mobile>,
+    mobiles: Vec<Entity<Mobile>>,
     projs: Vec<Projectile>,
     frame_count: usize,
 }
@@ -72,14 +76,14 @@ fn main() {
         Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture).unwrap()
     };
 
-    let sprite_sheet = Rc::new(Texture::with_file(Path::new("content/sample_sprites.jpg")));
+    let sprite_sheet = Rc::new(Texture::with_file(Path::new("content/link_sprites.png")));
 
     // How many frames have we simulated?
     let mut frame_count: usize = 0;
 
     // Tiles
     let tileset = Rc::new(Tileset::new(
-        vec![Tile { solid: false }; 100],
+        vec![Tile { solid: false }; 88 * 69],
         &Rc::new(Texture::with_file(Path::new("content/tilesheet.png"))),
     ));
 
@@ -87,82 +91,134 @@ fn main() {
         Vec2i(0, 0),
         (45, 15),
         &tileset,
-        [vec![93; 600], vec![4; 75]].concat(),
+        [
+            vec![3169; 240],
+            vec![1408],
+            vec![1409; 13],
+            vec![1410],
+            vec![3169; 30],
+            vec![1496],
+            vec![1233; 13],
+            vec![1498],
+            vec![3169; 30],
+            vec![1496],
+            vec![1233; 13],
+            vec![1498],
+            vec![3169; 30],
+            vec![1496],
+            vec![1233; 13],
+            vec![1498],
+            vec![3169; 30],
+            vec![1496],
+            vec![1233; 13],
+            vec![1498],
+            vec![3169; 30],
+            vec![1584],
+            vec![1321; 13],
+            vec![1586],
+            vec![3169; 195],
+        ]
+        .concat(),
     );
+
+    // Player sprite
+    let mut player_sprite = Sprite::new(
+        &sprite_sheet,
+        animation::AnimationSM::new(
+            vec![
+                animation::Animation::new(
+                    vec![
+                        Rect {
+                            x: 0,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 30,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 60,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 90,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 120,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 150,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 180,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 210,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                    ],
+                    vec![10; 8],
+                    frame_count,
+                    true,
+                ),
+                animation::Animation::new(
+                    vec![Rect {
+                        x: 60,
+                        y: 0,
+                        w: 30,
+                        h: 30,
+                    }],
+                    vec![60],
+                    frame_count,
+                    true,
+                ),
+            ],
+            vec![
+                (1, 0, String::from("move_up")),
+                (0, 1, String::from("stop_moving")),
+            ],
+            frame_count,
+            1,
+        ),
+        Vec2i(350, 500),
+    );
+
+    // Player entity
+    let mut player = Entity {
+        collider: Mobile::player(350, 500),
+        position: Vec2i(350, 500),
+        sprite: player_sprite,
+    };
 
     // Initial game state
     let mut state = GameState {
-        animations: vec![],
-        sprites: vec![Sprite::new(
-            &sprite_sheet,
-            animation::AnimationSM::new(
-                vec![
-                    animation::Animation::new(
-                        vec![
-                            Rect {
-                                x: 8,
-                                y: 168,
-                                w: 48,
-                                h: 48,
-                            },
-                            Rect {
-                                x: 72,
-                                y: 168,
-                                w: 48,
-                                h: 48,
-                            },
-                        ],
-                        vec![30, 30],
-                        frame_count,
-                        true,
-                    ),
-                    animation::Animation::new(
-                        vec![
-                            Rect {
-                                x: 8,
-                                y: 328,
-                                w: 32,
-                                h: 32,
-                            },
-                            Rect {
-                                x: 48,
-                                y: 328,
-                                w: 32,
-                                h: 32,
-                            },
-                            Rect {
-                                x: 89,
-                                y: 333,
-                                w: 23,
-                                h: 25,
-                            },
-                            Rect {
-                                x: 120,
-                                y: 336,
-                                w: 16,
-                                h: 16,
-                            },
-                        ],
-                        vec![15, 15, 15, 15],
-                        frame_count,
-                        false,
-                    ),
-                ],
-                vec![(0, 1, String::from("jump")), (1, 0, String::from(""))],
-                frame_count,
-                0,
-            ),
-            Vec2i(350, 500),
-        )],
-        textures: vec![sprite_sheet],
-        terrains: vec![],
+        // entities: vec![player],
         tilemaps: vec![map1],
-        mobiles: vec![],
+        terrains: vec![],
+        mobiles: vec![player],
         projs: vec![],
         frame_count: 0,
     };
-    let player_model = Mobile::player(350, 1000);
-    state.mobiles.push(player_model);
     // How many unsimulated frames have we saved up?
     let mut available_time = 0.0;
     // Track beginning of play
@@ -227,8 +283,9 @@ fn draw_game(state: &mut GameState, screen: &mut Screen, frame_count: usize) {
     for proj in state.projs.iter() {
         screen.rect(proj.rect, Rgba(0, 128, 0, 255));
     }
-    for s in state.sprites.iter_mut() {
-        screen.draw_sprite(s, frame_count);
+
+    for e in state.mobiles.iter_mut() {
+        screen.draw_sprite(&mut e.sprite, frame_count);
     }
 }
 
@@ -236,25 +293,46 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     state.frame_count += 1;
     // Player control goes here
     if input.key_held(VirtualKeyCode::Right) {
-        state.sprites[0].position.0 += 2;
+        state.mobiles[0].move_pos(2, 0);
+        state.mobiles[0]
+            .sprite
+            .animation_sm
+            .input("stop_moving", frame);
     }
     if input.key_held(VirtualKeyCode::Left) {
-        state.sprites[0].position.0 -= 2;
+        state.mobiles[0].move_pos(-2, 0);
+        state.mobiles[0]
+            .sprite
+            .animation_sm
+            .input("stop_moving", frame);
     }
     if input.key_held(VirtualKeyCode::Up) {
-        state.sprites[0].position.1 -= 2;
+        state.mobiles[0].move_pos(0, -2);
+        state.mobiles[0].sprite.animation_sm.input("move_up", frame);
     }
     if input.key_held(VirtualKeyCode::Down) {
-        state.sprites[0].position.1 += 2;
-    }
-    if input.key_pressed(VirtualKeyCode::Space) {
-        state.sprites[0].animation_sm.input("jump", frame);
+        state.mobiles[0].move_pos(0, 2);
+        state.mobiles[0]
+            .sprite
+            .animation_sm
+            .input("stop_moving", frame);
     }
     // Update player position
 
     // Detect collisions: Generate contacts
     let mut contacts: Vec<Contact> = vec![];
-    collision::gather_contacts(&state.terrains, &state.mobiles, &state.projs, &mut contacts);
+    // collision::gather_contacts(&state.terrains, &state.mobiles, &state.projs, &mut contacts);
+    collision::gather_contacts(
+        &state.terrains,
+        // &state
+        //     .mobiles
+        //     .into_iter()
+        //     .map(|x| x.collider)
+        //     .collect::<Vec<_>>(),
+        &state.mobiles,
+        &state.projs,
+        &mut contacts,
+    );
 
     // Handle collisions: Apply restitution impulses.
     collision::handle_contact(
@@ -265,8 +343,16 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     );
 
     if state.frame_count == 15 {
-        state.frame_count = 0;
-        state.projs.push(Projectile::new(&state.mobiles[0]));
+        // state.frame_count = 0;
+        // state.projs.push(Projectile::new(&state.mobiles[0]));
+        /*
+        if let ColliderType::Mobile(ref mobile) = state.entities[0].collider {
+            state.projs.push(Projectile::new(&mobile));
+        }
+        */
+        state
+            .projs
+            .push(Projectile::new(&state.mobiles[0].collider));
         println!("pushed a proj.");
     }
 

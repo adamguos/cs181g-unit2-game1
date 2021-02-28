@@ -1,4 +1,5 @@
 use crate::animation::AnimationSM;
+use crate::collision::Mobile;
 use crate::texture::Texture;
 use crate::types::Vec2i;
 use std::rc::Rc;
