@@ -20,6 +20,8 @@ use collision::{Contact, Mobile, Projectile, Terrain};
 // Texture has our image loading and processing stuff
 mod texture;
 use texture::Texture;
+mod tiles;
+use tiles::{Tile, Tilemap, Tileset};
 // Animation will define our animation datatypes and blending or whatever
 mod animation;
 use animation::{Animation, AnimationSM};
@@ -39,15 +41,16 @@ struct GameState {
     textures: Vec<Rc<Texture>>,
     sprites: Vec<Sprite>,
     terrains: Vec<Terrain>,
+    tilemaps: Vec<Tilemap>,
     mobiles: Vec<Mobile>,
     projs: Vec<Projectile>,
-    frame_count:usize,
+    frame_count: usize,
 }
 // seconds per frame
 const DT: f64 = 1.0 / 60.0;
 
-const WIDTH: usize = 720;
-const HEIGHT: usize = 1280;
+const WIDTH: usize = 600;
+const HEIGHT: usize = 800;
 const DEPTH: usize = 4;
 
 fn main() {
@@ -68,16 +71,30 @@ fn main() {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture).unwrap()
     };
-    let tex = Rc::new(Texture::with_file(Path::new("content/sample_sprites.jpg")));
+
+    let sprite_sheet = Rc::new(Texture::with_file(Path::new("content/sample_sprites.jpg")));
 
     // How many frames have we simulated?
     let mut frame_count: usize = 0;
 
+    // Tiles
+    let tileset = Rc::new(Tileset::new(
+        vec![Tile { solid: false }; 100],
+        &Rc::new(Texture::with_file(Path::new("content/tilesheet.png"))),
+    ));
+
+    let map1 = Tilemap::new(
+        Vec2i(0, 0),
+        (45, 15),
+        &tileset,
+        [vec![93; 600], vec![4; 75]].concat(),
+    );
+
+    // Initial game state
     let mut state = GameState {
-        // initial game state...
         animations: vec![],
         sprites: vec![Sprite::new(
-            &tex,
+            &sprite_sheet,
             animation::AnimationSM::new(
                 vec![
                     animation::Animation::new(
@@ -135,15 +152,16 @@ fn main() {
                 frame_count,
                 0,
             ),
-            Vec2i(350, 1000),
+            Vec2i(350, 500),
         )],
-        textures: vec![tex],
+        textures: vec![sprite_sheet],
         terrains: vec![],
+        tilemaps: vec![map1],
         mobiles: vec![],
         projs: vec![],
         frame_count: 0,
     };
-    let player_model = Mobile::player(350,1000);
+    let player_model = Mobile::player(350, 1000);
     state.mobiles.push(player_model);
     // How many unsimulated frames have we saved up?
     let mut available_time = 0.0;
@@ -154,7 +172,7 @@ fn main() {
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
-            let mut screen = Screen::wrap(pixels.get_frame(), WIDTH, HEIGHT, DEPTH);
+            let mut screen = Screen::wrap(pixels.get_frame(), WIDTH, HEIGHT, DEPTH, Vec2i(0, 0));
             screen.clear(Rgba(0, 0, 0, 0));
 
             draw_game(&mut state, &mut screen, frame_count);
@@ -201,17 +219,11 @@ fn main() {
 fn draw_game(state: &mut GameState, screen: &mut Screen, frame_count: usize) {
     // Call screen's drawing methods to render the game state
     screen.clear(Rgba(80, 80, 80, 255));
-    
-    screen.rect(
-        Rect {
-            x: 100,
-            y: 100,
-            w: 32,
-            h: 64,
-        },
-        Rgba(128, 0, 0, 255),
-    );
-    //screen.line(Vec2i(0, 150), Vec2i(300, 200), Rgba(0, 128, 0, 255));
+
+    for map in state.tilemaps.iter() {
+        map.draw(screen);
+    }
+
     for proj in state.projs.iter() {
         screen.rect(proj.rect, Rgba(0, 128, 0, 255));
     }
@@ -245,7 +257,12 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     collision::gather_contacts(&state.terrains, &state.mobiles, &state.projs, &mut contacts);
 
     // Handle collisions: Apply restitution impulses.
-    collision::handle_contact(&mut state.terrains, &mut state.mobiles, &mut state.projs, &mut contacts);
+    collision::handle_contact(
+        &mut state.terrains,
+        &mut state.mobiles,
+        &mut state.projs,
+        &mut contacts,
+    );
 
     if state.frame_count == 15 {
         state.frame_count = 0;

@@ -1,47 +1,82 @@
 // We can pull in definitions from elsewhere in the crate!
 use crate::texture::Texture;
 use crate::types::{Rect, Rgba, Vec2i};
+
 pub struct Screen<'fb> {
     framebuffer: &'fb mut [u8],
     width: usize,
     height: usize,
     depth: usize,
+    position: Vec2i,
 }
+
 impl<'fb> Screen<'fb> {
-    pub fn wrap(framebuffer: &'fb mut [u8], width: usize, height: usize, depth: usize) -> Self {
+    pub fn wrap(
+        framebuffer: &'fb mut [u8],
+        width: usize,
+        height: usize,
+        depth: usize,
+        position: Vec2i,
+    ) -> Self {
         Self {
             framebuffer,
             width,
             height,
             depth,
+            position,
         }
     }
+
     pub fn size(&self) -> (usize, usize) {
         (self.width, self.height)
     }
-    // This is not going to be the most efficient API.
-    // Lots of bounds checks!
+
+    pub fn bounds(&self) -> Rect {
+        Rect {
+            x: self.position.0,
+            y: self.position.1,
+            w: self.width as u16,
+            h: self.height as u16,
+        }
+    }
+
+    // Our old, slow friend draw_at, now with super scrolling powers!
     #[inline(always)]
-    pub fn draw_at(&mut self, col: Rgba, x: usize, y: usize) {
-        // No need to check x or y < 0, they're usizes!
-        if self.width <= x || self.height <= y {
+    pub fn draw_at(&mut self, col: Rgba, Vec2i(x, y): Vec2i) {
+        let x = x - self.position.0;
+        let y = y - self.position.1;
+
+        if x < 0 || (self.width as i32) <= x || y < 0 || (self.height as i32) <= y {
             return;
         }
+
         assert_eq!(self.depth, 4);
         let c = [col.0, col.1, col.2, col.3];
-        let idx = y * self.width * self.depth + x * self.depth;
-        // TODO should handle alpha blending!
+        let idx = y * self.width as i32 * self.depth as i32 + x * self.depth as i32;
+        assert!(idx >= 0);
+        let idx = idx as usize;
+
         self.framebuffer[idx..(idx + self.depth)].copy_from_slice(&c);
     }
-    // If we know the primitives in advance we're in much better shape:
+
+    // Clear's the same...
     pub fn clear(&mut self, col: Rgba) {
         let c = [col.0, col.1, col.2, col.3];
         for px in self.framebuffer.chunks_exact_mut(4) {
             px.copy_from_slice(&c);
         }
     }
+
+    // Rect needs a translation to start
     pub fn rect(&mut self, r: Rect, col: Rgba) {
         let c = [col.0, col.1, col.2, col.3];
+        // Here's the translation
+        let r = Rect {
+            x: r.x - self.position.0,
+            y: r.y - self.position.1,
+            ..r
+        };
+        // And the rest is just the same
         let x0 = r.x.max(0).min(self.width as i32) as usize;
         let x1 = (r.x + r.w as i32).max(0).min(self.width as i32) as usize;
         let y0 = r.y.max(0).min(self.height as i32) as usize;
@@ -55,8 +90,17 @@ impl<'fb> Screen<'fb> {
             }
         }
     }
+
+    // Ditto line
     pub fn line(&mut self, Vec2i(x0, y0): Vec2i, Vec2i(x1, y1): Vec2i, col: Rgba) {
-        let c = [col.0, col.1, col.2, col.3];
+        let col = [col.0, col.1, col.2, col.3];
+        // translate translate
+        let x0 = x0 - self.position.0;
+        let y0 = y0 - self.position.1;
+        // translate translate
+        let x1 = x1 - self.position.0;
+        let y1 = y1 - self.position.1;
+        // Now proceed as we were
         let mut x = x0;
         let mut y = y0;
         let dx = (x1 - x0).abs();
@@ -78,7 +122,7 @@ impl<'fb> Screen<'fb> {
                 // TODO better handle alpha blending too, but not just yet...
                 self.framebuffer[(y as usize * pitch + x as usize * depth)
                     ..(y as usize * pitch + (x as usize + 1) * depth)]
-                    .copy_from_slice(&c);
+                    .copy_from_slice(&col);
             }
             let e2 = 2 * err;
             if dy <= e2 {
@@ -91,8 +135,16 @@ impl<'fb> Screen<'fb> {
             }
         }
     }
+
+    // Bitblt too begins with a translation
     pub fn bitblt(&mut self, src: &Texture, from: Rect, Vec2i(to_x, to_y): Vec2i) {
-        assert!(src.valid_frame(from));
+        let (tw, th) = src.size();
+        assert!(0 <= from.x);
+        assert!(from.x < tw as i32);
+        assert!(0 <= from.y);
+        assert!(from.y < th as i32);
+        let to_x = to_x - self.position.0;
+        let to_y = to_y - self.position.1;
         if (to_x + from.w as i32) < 0
             || (self.width as i32) <= to_x
             || (to_y + from.h as i32) < 0
@@ -111,27 +163,13 @@ impl<'fb> Screen<'fb> {
         let x_skip = to_x.max(0) - to_x;
         let y_count = (to_y + from.h as i32).min(self.height as i32) - to_y;
         let x_count = (to_x + from.w as i32).min(self.width as i32) - to_x;
-        // The code above is gnarly so these are just for safety:
-        debug_assert!(0 <= x_skip);
-        debug_assert!(0 <= y_skip);
-        debug_assert!(0 <= x_count);
-        debug_assert!(0 <= y_count);
-        debug_assert!(x_count <= from.w as i32);
-        debug_assert!(y_count <= from.h as i32);
-        debug_assert!(0 <= to_x + x_skip);
-        debug_assert!(0 <= to_y + y_skip);
-        debug_assert!(0 <= from.x + x_skip);
-        debug_assert!(0 <= from.y + y_skip);
-        debug_assert!(to_x + x_count <= self.width as i32);
-        debug_assert!(to_y + y_count <= self.height as i32);
-        // OK, let's do some copying now
         let src_buf = src.buffer();
-        for (row_a, row_b) in src_buf
-            [(src_pitch * (from.y + y_skip) as usize)..(src_pitch * (from.y + y_count) as usize)]
+        for (row_a, row_b) in src_buf[(src_pitch * ((from.y + y_skip) as usize))
+            ..(src_pitch * ((from.y + y_count) as usize))]
             .chunks_exact(src_pitch)
             .zip(
-                self.framebuffer[(dst_pitch * (to_y + y_skip) as usize)
-                    ..(dst_pitch * (to_y + y_count) as usize)]
+                self.framebuffer[(dst_pitch * ((to_y + y_skip) as usize))
+                    ..(dst_pitch * ((to_y + y_count) as usize))]
                     .chunks_exact_mut(dst_pitch),
             )
         {

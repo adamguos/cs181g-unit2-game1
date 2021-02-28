@@ -46,13 +46,13 @@ pub(crate) struct Terrain {
     hp: usize,
 }
 impl Terrain {
-    fn new(x:i32,y:i32) -> Self{
-        Self{
-            rect: Rect{
-                x:x,
-                y:y,
+    fn new(x: i32, y: i32) -> Self {
+        Self {
+            rect: Rect {
+                x: x,
+                y: y,
                 w: 20,
-                h:20
+                h: 20,
             },
             hp: 300,
         }
@@ -69,31 +69,31 @@ pub(crate) struct Mobile {
     hp: usize,
 }
 impl Mobile {
-    pub fn enemy(x:i32,y:i32,hp:usize) -> Self{
-        Self{
-            rect: Rect{
-                x:x,
-                y:y,
-                w:30,
-                h:30,
+    pub fn enemy(x: i32, y: i32, hp: usize) -> Self {
+        Self {
+            rect: Rect {
+                x: x,
+                y: y,
+                w: 30,
+                h: 30,
             },
-            vx:0,
-            vy:4,
-            hp:50,
+            vx: 0,
+            vy: 4,
+            hp: 50,
         }
     }
-    
-    pub fn player(x:i32,y:i32) ->Self{
-        Self{
-            rect: Rect{
-                x:x,
-                y:y,
-                w:40,
-                h:40,
+
+    pub fn player(x: i32, y: i32) -> Self {
+        Self {
+            rect: Rect {
+                x: x,
+                y: y,
+                w: 40,
+                h: 40,
             },
-            vx:0,
-            vy:0,
-            hp:100,
+            vx: 0,
+            vy: 0,
+            hp: 100,
         }
     }
 }
@@ -109,17 +109,17 @@ pub(crate) struct Projectile {
 }
 
 impl Projectile {
-    pub(crate) fn new(from:&Mobile) -> Self {
-        Self{
-            rect: Rect{
-                x:from.rect.x,
-                y:from.rect.y - 10,
-                w:5,
-                h:5,
+    pub(crate) fn new(from: &Mobile) -> Self {
+        Self {
+            rect: Rect {
+                x: from.rect.x,
+                y: from.rect.y - 10,
+                w: 5,
+                h: 5,
             },
-            vx:0.0,
-            vy:-10.0,
-            hp:10,
+            vx: 0.0,
+            vy: -10.0,
+            hp: 10,
         }
     }
 }
@@ -252,14 +252,18 @@ pub(crate) fn gather_contacts(
     }
 }
 
-
 /*
 Modify the hp of the objects and remove unnecessary objects.
 */
-pub(crate) fn handle_contact(terrains: &mut Vec<Terrain>,mobiles: &mut Vec<Mobile>, projs: &mut Vec<Projectile>, contacts: &mut Vec<Contact>) -> bool{
+pub(crate) fn handle_contact(
+    terrains: &mut Vec<Terrain>,
+    mobiles: &mut Vec<Mobile>,
+    projs: &mut Vec<Projectile>,
+    contacts: &mut Vec<Contact>,
+) -> bool {
     // We first modify the hp of the collision objects.
     for contact in contacts.iter() {
-        match (contact.a,contact.b) {
+        match (contact.a, contact.b) {
             // By design a contact will always be MM MT PM PT
             // MT collide will kill the mobile
             // MM collide will destroy the lower hp mobile and cause 30 pt damage to the higher hp mobile
@@ -269,17 +273,25 @@ pub(crate) fn handle_contact(terrains: &mut Vec<Terrain>,mobiles: &mut Vec<Mobil
             (ColliderID::Mobile(a), ColliderID::Mobile(b)) => {
                 if mobiles[a].hp > mobiles[b].hp {
                     mobiles[b].hp = 0;
-                    mobiles[a].hp = if mobiles[a].hp >= 30 {mobiles[a].hp -30} else {0};
+                    mobiles[a].hp = if mobiles[a].hp >= 30 {
+                        mobiles[a].hp - 30
+                    } else {
+                        0
+                    };
                 } else {
                     mobiles[a].hp = 0;
-                    mobiles[b].hp = if mobiles[b].hp >= 30 {mobiles[b].hp -30} else {0};
+                    mobiles[b].hp = if mobiles[b].hp >= 30 {
+                        mobiles[b].hp - 30
+                    } else {
+                        0
+                    };
                 }
             }
             (ColliderID::Projectile(a), ColliderID::Terrain(b)) => {
                 if terrains[b].hp >= projs[a].hp {
                     terrains[b].hp -= projs[a].hp;
                 } else {
-                    terrains[b].hp =0;
+                    terrains[b].hp = 0;
                 }
                 projs[a].hp = 0;
             }
@@ -287,16 +299,16 @@ pub(crate) fn handle_contact(terrains: &mut Vec<Terrain>,mobiles: &mut Vec<Mobil
                 if mobiles[b].hp >= projs[a].hp {
                     mobiles[b].hp -= projs[a].hp;
                 } else {
-                    mobiles[b].hp =0;
+                    mobiles[b].hp = 0;
                 }
                 projs[a].hp = 0;
             }
             _ => {}
         }
     }
-    terrains.retain(|terrain| terrain.hp > 0 );
-    mobiles.retain(|mobile| mobile.hp > 0 );
-    projs.retain(|proj| proj.hp > 0 );
+    terrains.retain(|terrain| terrain.hp > 0);
+    mobiles.retain(|mobile| mobile.hp > 0);
+    projs.retain(|proj| proj.hp > 0);
     return true;
 }
 
@@ -315,4 +327,3 @@ fn separating_axis(ax1: i32, ax2: i32, bx1: i32, bx2: i32) -> bool {
     assert!(ax1 <= ax2 && bx1 <= bx2);
     ax2 < bx1 || bx2 < ax1
 }
-
