@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::screen::Screen;
@@ -19,6 +20,7 @@ pub struct Tileset {
      */
     pub tiles: Vec<Tile>,
     texture: Rc<Texture>,
+    pub tile_ids: HashMap<String, Vec<usize>>,
 }
 
 /// Indices into a Tileset
@@ -35,10 +37,15 @@ impl std::ops::Index<TileID> for Tileset {
 }
 
 impl Tileset {
-    pub fn new(tiles: Vec<Tile>, texture: &Rc<Texture>) -> Self {
+    pub fn new(
+        tiles: Vec<Tile>,
+        texture: &Rc<Texture>,
+        tile_ids: HashMap<String, Vec<usize>>,
+    ) -> Self {
         Self {
             tiles,
             texture: Rc::clone(texture),
+            tile_ids,
         }
     }
 
@@ -64,13 +71,14 @@ impl Tileset {
     }
 }
 
+#[derive(Clone)]
 pub struct Tilemap {
     /// Where the tilemap is in space
     pub position: Vec2i,
     /// How big it is
     dims: (usize, usize),
     /// Which tileset is used for this tilemap
-    tileset: Rc<Tileset>,
+    pub tileset: Rc<Tileset>,
     /// A row-major grid of tile IDs in tileset
     map: Vec<TileID>,
 }
@@ -166,5 +174,16 @@ impl Tilemap {
 
     pub fn tile_at(&self, posn: Vec2i) -> Tile {
         self.tileset[self.tile_id_at(posn)]
+    }
+
+    pub fn is_visible(&self, screen_pos: Vec2i, screen_dim: Vec2i) -> bool {
+        let dims_px = Vec2i(
+            (self.dims.0 * TILE_SZ) as i32,
+            (self.dims.1 * TILE_SZ) as i32,
+        );
+        !((self.position.0 + dims_px.0 as i32) < screen_pos.0
+            || self.position.0 > screen_pos.0 + screen_dim.0
+            || (self.position.1 + dims_px.1 as i32) < screen_pos.1
+            || self.position.1 > screen_pos.1 + screen_dim.1)
     }
 }

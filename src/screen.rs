@@ -31,6 +31,11 @@ impl<'fb> Screen<'fb> {
         (self.width, self.height)
     }
 
+    pub fn move_pos(&mut self, dx: i32, dy: i32) {
+        self.position.0 += dx;
+        self.position.1 += dy;
+    }
+
     pub fn bounds(&self) -> Rect {
         Rect {
             x: self.position.0,
