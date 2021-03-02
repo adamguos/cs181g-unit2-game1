@@ -87,6 +87,7 @@ fn main() {
         String::from("ground"),
         vec![3169, 2905, 1, 356, 268, 312, 61, 144],
     );
+
     let tileset = Rc::new(Tileset::new(
         vec![Tile { solid: false }; 88 * 69],
         &Rc::new(Texture::with_file(Path::new("content/tilesheet.png"))),
@@ -190,7 +191,7 @@ fn main() {
     // Initial game state
     let mut state = GameState {
         // entities: vec![player],
-        tilemaps: tilemaps,
+        tilemaps,
         terrains: vec![],
         mobiles: vec![player],
         projs: vec![],
@@ -202,7 +203,7 @@ fn main() {
     // Track beginning of play
     let start = Instant::now();
     // Track end of the last frame
-    let mut since = Instant::now();
+    let mut since = Instant::now(); //TODO: This seems to be similar?
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
@@ -212,6 +213,7 @@ fn main() {
             // Load and unload tilemaps if necessary
             update_tilemaps(&mut state);
 
+            // Draw current game
             draw_game(&mut state, &mut screen, frame_count);
 
             // Flip buffers
@@ -305,6 +307,7 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     state.frame_count += 1;
     state.scroll.1 -= 1;
 
+    // Update player position
     // Player control goes here
     if input.key_pressed(VirtualKeyCode::Right) {
         state.mobiles[0].move_pos(2, 0);
@@ -321,22 +324,24 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
             .input("stop_moving", frame);
     }
     if input.key_pressed(VirtualKeyCode::Up) {
-        state.mobiles[0].move_pos(0, -2);
+        state.mobiles[0].move_pos(0, -10);
         state.mobiles[0].sprite.animation_sm.input("move_up", frame);
     }
     if input.key_pressed(VirtualKeyCode::Down) {
-        state.mobiles[0].move_pos(0, 2);
+        state.mobiles[0].move_pos(0, 10);
         state.mobiles[0]
             .sprite
             .animation_sm
             .input("stop_moving", frame);
     }
 
-    // Update player position
+    // Update proj position
+    for proj in state.projs.iter_mut() {
+        proj.move_pos(proj.get_velocity().0 as i32, proj.get_velocity().1 as i32);
+    }
 
     // Detect collisions: Generate contacts
     let mut contacts: Vec<Contact> = vec![];
-    // collision::gather_contacts(&state.terrains, &state.mobiles, &state.projs, &mut contacts);
     collision::gather_contacts(
         &state.terrains,
         // &state
@@ -349,15 +354,20 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
         &mut contacts,
     );
 
-    // Handle collisions: Apply restitution impulses.
-    collision::handle_contact(
+    // Handle collisions
+    let player_is_alive = collision::handle_contact(
         &mut state.terrains,
         &mut state.mobiles,
         &mut state.projs,
         &mut contacts,
     );
 
-    if state.frame_count == 15 {
+    if !player_is_alive {
+        println!("Player is dead!");
+    }
+
+    // fire!
+    if state.frame_count == 10 { //shooting speed control goes here
         // state.frame_count = 0;
         // state.projs.push(Projectile::new(&state.mobiles[0]));
         /*
@@ -368,7 +378,8 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
         state
             .projs
             .push(Projectile::new(&state.mobiles[0].collider));
-        println!("pushed a proj.");
+        //println!("pushed a proj.");
+        state.frame_count = 0;
     }
 
     // Update game rules: What happens when the player touches things?

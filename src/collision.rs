@@ -1,7 +1,7 @@
 use std::cmp::max;
 
-use crate::entity::Entity;
 use crate::types::Rect;
+use crate::{entity::Entity, types::Vec2i};
 
 // seconds per frame
 const DT: f64 = 1.0 / 60.0;
@@ -161,6 +161,10 @@ impl Projectile {
             hp: 10,
         }
     }
+
+    pub fn get_velocity(&self) -> (f64, f64) {
+        (self.vx, self.vy)
+    }
 }
 
 // pixels gives us an rgba8888 framebuffer
@@ -298,6 +302,7 @@ pub(crate) fn gather_contacts(
 
 /*
 Modify the hp of the objects and remove unnecessary objects.
+Return a boolean indicating if the player is alive.
 */
 pub(crate) fn handle_contact(
     terrains: &mut Vec<Terrain>,
@@ -350,10 +355,11 @@ pub(crate) fn handle_contact(
             _ => {}
         }
     }
+    let player_is_alive = mobiles[0].collider.hp != 0;
     terrains.retain(|terrain| terrain.hp > 0);
     mobiles.retain(|mobile| mobile.collider.hp > 0);
     projs.retain(|proj| proj.hp > 0);
-    return true;
+    player_is_alive
 }
 
 fn restitute(statics: &[Terrain], dynamics: &mut [Mobile], contacts: &mut [Contact]) {
