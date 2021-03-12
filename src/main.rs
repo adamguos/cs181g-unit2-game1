@@ -1,5 +1,5 @@
 use pixels::{Pixels, SurfaceTexture};
-use rand::Rng;
+use rand::{Rng, thread_rng};
 use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
@@ -48,6 +48,7 @@ struct GameState {
     projs: Vec<Projectile>,
     frame_count: usize,
     scroll: Vec2i,
+    score: usize,
 }
 
 // seconds per frame
@@ -181,6 +182,87 @@ fn main() {
         Vec2i(350, 500),
     );
 
+    let enemy_sprite = Sprite::new(
+        &sprite_sheet,
+        animation::AnimationSM::new(
+            vec![
+                animation::Animation::new(
+                    vec![
+                        Rect {
+                            x: 0,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 30,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 60,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 90,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 120,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 150,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 180,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                        Rect {
+                            x: 210,
+                            y: 120,
+                            w: 30,
+                            h: 30,
+                        },
+                    ],
+                    vec![10; 8],
+                    frame_count,
+                    true,
+                ),
+                animation::Animation::new(
+                    vec![Rect {
+                        x: 60,
+                        y: 0,
+                        w: 30,
+                        h: 30,
+                    }],
+                    vec![60],
+                    frame_count,
+                    true,
+                ),
+            ],
+            vec![
+                (1, 0, String::from("move_up")),
+                (0, 1, String::from("stop_moving")),
+            ],
+            frame_count,
+            1,
+        ),
+        Vec2i(30, 30),
+    );
+
     // Player entity
     let mut player = Entity {
         collider: Mobile::player(350, 500),
@@ -188,15 +270,22 @@ fn main() {
         sprite: player_sprite,
     };
 
+    let mut enemy1 = Entity {
+        collider: Mobile::enemy(30, 30, 100),
+        position: Vec2i(30, 30),
+        sprite: enemy_sprite,
+    };
+
     // Initial game state
     let mut state = GameState {
         // entities: vec![player],
         tilemaps,
         terrains: vec![],
-        mobiles: vec![player],
+        mobiles: vec![player,enemy1],
         projs: vec![],
         frame_count: 0,
         scroll: Vec2i(0, 0),
+        score: 0,
     };
     // How many unsimulated frames have we saved up?
     let mut available_time = 0.0;
@@ -205,6 +294,7 @@ fn main() {
     // Track end of the last frame
     let mut since = Instant::now(); //TODO: This seems to be similar?
     event_loop.run(move |event, _, control_flow| {
+
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
             let mut screen = Screen::wrap(pixels.get_frame(), WIDTH, HEIGHT, DEPTH, state.scroll);
@@ -226,6 +316,7 @@ fn main() {
             // The renderer "produces" time...
             available_time += since.elapsed().as_secs_f64();
         }
+
         // Handle input events
         if input.update(event) {
             // Close events
@@ -238,6 +329,7 @@ fn main() {
                 pixels.resize(size.width, size.height);
             }
         }
+
         // And the simulation "consumes" it
         while available_time >= DT {
             // Eat up one frame worth of time
@@ -245,9 +337,102 @@ fn main() {
 
             update_game(&mut state, &input, frame_count);
 
+            // add new enemy
+            if state.frame_count%180 == 0{
+                let enemy_sprite_loop = Sprite::new(
+                    &sprite_sheet,
+                    animation::AnimationSM::new(
+                        vec![
+                            animation::Animation::new(
+                                vec![
+                                    Rect {
+                                        x: 0,
+                                        y: 120,
+                                        w: 30,
+                                        h: 30,
+                                    },
+                                    Rect {
+                                        x: 30,
+                                        y: 120,
+                                        w: 30,
+                                        h: 30,
+                                    },
+                                    Rect {
+                                        x: 60,
+                                        y: 120,
+                                        w: 30,
+                                        h: 30,
+                                    },
+                                    Rect {
+                                        x: 90,
+                                        y: 120,
+                                        w: 30,
+                                        h: 30,
+                                    },
+                                    Rect {
+                                        x: 120,
+                                        y: 120,
+                                        w: 30,
+                                        h: 30,
+                                    },
+                                    Rect {
+                                        x: 150,
+                                        y: 120,
+                                        w: 30,
+                                        h: 30,
+                                    },
+                                    Rect {
+                                        x: 180,
+                                        y: 120,
+                                        w: 30,
+                                        h: 30,
+                                    },
+                                    Rect {
+                                        x: 210,
+                                        y: 120,
+                                        w: 30,
+                                        h: 30,
+                                    },
+                                ],
+                                vec![10; 8],
+                                frame_count,
+                                true,
+                            ),
+                            animation::Animation::new(
+                                vec![Rect {
+                                    x: 60,
+                                    y: 0,
+                                    w: 30,
+                                    h: 30,
+                                }],
+                                vec![60],
+                                frame_count,
+                                true,
+                            ),
+                        ],
+                        vec![
+                            (1, 0, String::from("move_up")),
+                            (0, 1, String::from("stop_moving")),
+                        ],
+                        frame_count,
+                        1,
+                    ),
+                    Vec2i(30, 30),
+                );
+            
+                let mut enemy_loop = Entity {
+                    collider: Mobile::enemy(30, 30, 100),
+                    position: Vec2i(30, 30),
+                    sprite: enemy_sprite_loop,
+                };
+                state.mobiles.push(enemy_loop);
+                println!("pushed new enemy");
+            }
+
             // Increment the frame counter
             frame_count += 1;
         }
+
         // Request redraw
         window.request_redraw();
         // When did the last frame end?
@@ -344,18 +529,13 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     let mut contacts: Vec<Contact> = vec![];
     collision::gather_contacts(
         &state.terrains,
-        // &state
-        //     .mobiles
-        //     .into_iter()
-        //     .map(|x| x.collider)
-        //     .collect::<Vec<_>>(),
         &state.mobiles,
         &state.projs,
         &mut contacts,
     );
 
     // Handle collisions
-    let player_is_alive = collision::handle_contact(
+    let (player_is_alive,scores_gained) = collision::handle_contact(
         &mut state.terrains,
         &mut state.mobiles,
         &mut state.projs,
@@ -363,11 +543,16 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     );
 
     if !player_is_alive {
+        state.score += scores_gained - 1;
         println!("Player is dead!");
+    } else {
+        state.score += scores_gained;
     }
 
+
     // fire!
-    if state.frame_count == 10 { //shooting speed control goes here
+    if state.frame_count%10==0 {
+        //shooting speed control goes here
         // state.frame_count = 0;
         // state.projs.push(Projectile::new(&state.mobiles[0]));
         /*
@@ -379,7 +564,6 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
             .projs
             .push(Projectile::new(&state.mobiles[0].collider));
         //println!("pushed a proj.");
-        state.frame_count = 0;
     }
 
     // Update game rules: What happens when the player touches things?

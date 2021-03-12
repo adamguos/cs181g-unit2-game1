@@ -36,6 +36,8 @@ pub trait ColliderType {
 
 pub trait Collider {
     fn move_pos(&mut self, dx: i32, dy: i32);
+
+    fn set_pos(&mut self, x:i32, y:i32);
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -64,6 +66,11 @@ impl Collider for Terrain {
     fn move_pos(&mut self, dx: i32, dy: i32) {
         self.rect.x += dx;
         self.rect.y += dy;
+    }
+
+    fn set_pos(&mut self, x:i32, y:i32) {
+        self.rect.x = x;
+        self.rect.y = y;
     }
 }
 impl Terrain {
@@ -94,6 +101,11 @@ impl Collider for Mobile {
     fn move_pos(&mut self, dx: i32, dy: i32) {
         self.rect.x += dx;
         self.rect.y += dy;
+    }
+
+    fn set_pos(&mut self, x:i32, y:i32) {
+        self.rect.x = x;
+        self.rect.y = y;
     }
 }
 impl Mobile {
@@ -145,6 +157,11 @@ impl Collider for Projectile {
     fn move_pos(&mut self, dx: i32, dy: i32) {
         self.rect.x += dx;
         self.rect.y += dy;
+    }
+
+    fn set_pos(&mut self, x:i32, y:i32) {
+        self.rect.x = x;
+        self.rect.y = y;
     }
 }
 impl Projectile {
@@ -309,7 +326,7 @@ pub(crate) fn handle_contact(
     mobiles: &mut Vec<Entity<Mobile>>,
     projs: &mut Vec<Projectile>,
     contacts: &mut Vec<Contact>,
-) -> bool {
+) -> (bool,usize) {
     // We first modify the hp of the collision objects.
     for contact in contacts.iter() {
         match (contact.a, contact.b) {
@@ -357,9 +374,11 @@ pub(crate) fn handle_contact(
     }
     let player_is_alive = mobiles[0].collider.hp != 0;
     terrains.retain(|terrain| terrain.hp > 0);
+    let ori = mobiles.len();
     mobiles.retain(|mobile| mobile.collider.hp > 0);
+    let new = mobiles.len();
     projs.retain(|proj| proj.hp > 0);
-    player_is_alive
+    (player_is_alive,ori-new)
 }
 
 fn restitute(statics: &[Terrain], dynamics: &mut [Mobile], contacts: &mut [Contact]) {
