@@ -2,6 +2,10 @@ CSCI 181G unit 2 game 1
 
 Adam Guo, Ziang Xue, Gleb Tebaykin
 
+to do:
+
+- Why is the draw rate so low? It seems like Event::RedrawRequested(_) (main.rs:296) is only being called once every ~10 frames
+
 - Collision
 There are 3 struct types: `Terrian`, `Mobile` and `Projectile`. In my vision projectiles won't collide with other projectiles but every other possible pairs do collides. The `gather_contacts` is the same as the anim2d lab. -- Ziang
 

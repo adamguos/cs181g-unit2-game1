@@ -66,7 +66,7 @@ impl<T: Collider> Entity<T> {
         */
     }
 
-    fn align(&mut self){
+    fn align(&mut self) {
         if self.sprite.position.0 != self.position.0 {
             self.sprite.position.0 = self.position.0;
         }

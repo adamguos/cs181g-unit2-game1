@@ -37,7 +37,7 @@ pub trait ColliderType {
 pub trait Collider {
     fn move_pos(&mut self, dx: i32, dy: i32);
 
-    fn set_pos(&mut self, x:i32, y:i32);
+    fn set_pos(&mut self, x: i32, y: i32);
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -60,7 +60,8 @@ pub(crate) struct Contact {
 #[derive(Clone)]
 pub struct Terrain {
     pub rect: Rect,
-    hp: usize,
+    pub destructible: bool,
+    pub hp: usize,
 }
 impl Collider for Terrain {
     fn move_pos(&mut self, dx: i32, dy: i32) {
@@ -68,11 +69,12 @@ impl Collider for Terrain {
         self.rect.y += dy;
     }
 
-    fn set_pos(&mut self, x:i32, y:i32) {
+    fn set_pos(&mut self, x: i32, y: i32) {
         self.rect.x = x;
         self.rect.y = y;
     }
 }
+/*
 impl Terrain {
     fn new(x: i32, y: i32) -> Self {
         Self {
@@ -86,6 +88,7 @@ impl Terrain {
         }
     }
 }
+*/
 
 /*
    Mobiles would need to be able to move freely. We would require its hitbox to be rect.
@@ -103,7 +106,7 @@ impl Collider for Mobile {
         self.rect.y += dy;
     }
 
-    fn set_pos(&mut self, x:i32, y:i32) {
+    fn set_pos(&mut self, x: i32, y: i32) {
         self.rect.x = x;
         self.rect.y = y;
     }
@@ -128,8 +131,8 @@ impl Mobile {
             rect: Rect {
                 x: x,
                 y: y,
-                w: 40,
-                h: 40,
+                w: 36,
+                h: 25,
             },
             vx: 0,
             vy: 0,
@@ -159,7 +162,7 @@ impl Collider for Projectile {
         self.rect.y += dy;
     }
 
-    fn set_pos(&mut self, x:i32, y:i32) {
+    fn set_pos(&mut self, x: i32, y: i32) {
         self.rect.x = x;
         self.rect.y = y;
     }
@@ -168,7 +171,7 @@ impl Projectile {
     pub(crate) fn new(from: &Mobile) -> Self {
         Self {
             rect: Rect {
-                x: from.rect.x,
+                x: from.rect.x + from.rect.w as i32 / 2,
                 y: from.rect.y - 10,
                 w: 5,
                 h: 5,
@@ -209,7 +212,7 @@ fn rect(fb: &mut [u8], r: Rect, c: Color) {
 
 // Here we will be using push() on into, so it can't be a slice
 pub(crate) fn gather_contacts(
-    terrains: &[Terrain],
+    terrains: &[Entity<Terrain>],
     // mobiles: &[Mobile],
     mobiles: &[Entity<Mobile>],
     projs: &[Projectile],
@@ -245,6 +248,7 @@ pub(crate) fn gather_contacts(
     for (ai, a) in mobiles.iter().enumerate() {
         let a = &a.collider;
         for (bi, b) in terrains.iter().enumerate() {
+            let b = &b.collider;
             if !separating_axis(
                 a.rect.x,
                 a.rect.x + a.rect.w as i32,
@@ -294,6 +298,7 @@ pub(crate) fn gather_contacts(
     // collide projs against terrains
     for (ai, a) in projs.iter().enumerate() {
         for (bi, b) in terrains.iter().enumerate() {
+            let b = &b.collider;
             if !separating_axis(
                 a.rect.x,
                 a.rect.x + a.rect.w as i32,
@@ -322,11 +327,11 @@ Modify the hp of the objects and remove unnecessary objects.
 Return a boolean indicating if the player is alive.
 */
 pub(crate) fn handle_contact(
-    terrains: &mut Vec<Terrain>,
+    terrains: &mut Vec<Entity<Terrain>>,
     mobiles: &mut Vec<Entity<Mobile>>,
     projs: &mut Vec<Projectile>,
     contacts: &mut Vec<Contact>,
-) -> (bool,usize) {
+) -> (bool, usize) {
     // We first modify the hp of the collision objects.
     for contact in contacts.iter() {
         match (contact.a, contact.b) {
@@ -354,10 +359,14 @@ pub(crate) fn handle_contact(
                 }
             }
             (ColliderID::Projectile(a), ColliderID::Terrain(b)) => {
-                if terrains[b].hp >= projs[a].hp {
-                    terrains[b].hp -= projs[a].hp;
-                } else {
-                    terrains[b].hp = 0;
+                if terrains[b].collider.destructible {
+                    if terrains[b].collider.hp >= projs[a].hp {
+                        terrains[b].collider.hp -= projs[a].hp;
+                    } else {
+                        terrains[b].collider.hp = 0;
+                    }
+
+                    terrains[b].sprite.animation_sm.input("hit", 0);
                 }
                 projs[a].hp = 0;
             }
@@ -373,12 +382,13 @@ pub(crate) fn handle_contact(
         }
     }
     let player_is_alive = mobiles[0].collider.hp != 0;
-    terrains.retain(|terrain| terrain.hp > 0);
+    terrains.retain(|terrain| terrain.collider.hp > 0);
+    println!("{}", terrains.len());
     let ori = mobiles.len();
     mobiles.retain(|mobile| mobile.collider.hp > 0);
     let new = mobiles.len();
     projs.retain(|proj| proj.hp > 0);
-    (player_is_alive,ori-new)
+    (player_is_alive, ori - new)
 }
 
 fn restitute(statics: &[Terrain], dynamics: &mut [Mobile], contacts: &mut [Contact]) {

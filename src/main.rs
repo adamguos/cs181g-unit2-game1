@@ -1,5 +1,5 @@
 use pixels::{Pixels, SurfaceTexture};
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
 use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
@@ -34,6 +34,9 @@ use sprite::*;
 mod types;
 use types::*;
 
+mod assets;
+use assets::*;
+
 // Now this main module is just for the run-loop and rules processing.
 struct GameState {
     // What data do we need for this game?  Wall positions?
@@ -41,7 +44,7 @@ struct GameState {
     // animations: Vec<Animation>,
     // textures: Vec<Rc<Texture>>,
     // sprites: Vec<Sprite>,
-    terrains: Vec<Terrain>,
+    terrains: Vec<Entity<Terrain>>,
     // entities: Vec<Entity>,
     tilemaps: Vec<Tilemap>,
     mobiles: Vec<Entity<Mobile>>,
@@ -54,8 +57,8 @@ struct GameState {
 // seconds per frame
 const DT: f64 = 1.0 / 60.0;
 
-const WIDTH: usize = 480;
-const HEIGHT: usize = 800;
+const WIDTH: usize = 320;
+const HEIGHT: usize = 576;
 const DEPTH: usize = 4;
 
 fn main() {
@@ -77,7 +80,9 @@ fn main() {
         Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture).unwrap()
     };
 
-    let sprite_sheet = Rc::new(Texture::with_file(Path::new("content/link_sprites.png")));
+    let sprite_sheet = Rc::new(Texture::with_file(Path::new(
+        "content/spaceshooter/Spritesheet/sheet.png",
+    )));
 
     // How many frames have we simulated?
     let mut frame_count: usize = 0;
@@ -89,191 +94,36 @@ fn main() {
         vec![3169, 2905, 1, 356, 268, 312, 61, 144],
     );
 
+    let tile_sheet = Rc::new(Texture::with_file(Path::new("content/tilesheet.png")));
     let tileset = Rc::new(Tileset::new(
         vec![Tile { solid: false }; 88 * 69],
-        &Rc::new(Texture::with_file(Path::new("content/tilesheet.png"))),
+        &tile_sheet,
         terrain_tile_ids,
     ));
 
     let tilemaps = vec![
-        Tilemap::new(Vec2i(0, 0), (30, 50), &tileset, vec![3169; 1500]),
-        Tilemap::new(Vec2i(0, 800), (30, 50), &tileset, vec![2095; 1500]),
+        Tilemap::new(
+            Vec2i(0, 0),
+            (WIDTH / TILE_SZ, HEIGHT / TILE_SZ),
+            &tileset,
+            vec![3169; (WIDTH / TILE_SZ) * (HEIGHT / TILE_SZ)],
+        ),
+        Tilemap::new(
+            Vec2i(0, HEIGHT as i32),
+            (WIDTH / TILE_SZ, HEIGHT / TILE_SZ),
+            &tileset,
+            vec![2095; (WIDTH / TILE_SZ) * (HEIGHT / TILE_SZ)],
+        ),
     ];
 
     // Player sprite
-    let player_sprite = Sprite::new(
-        &sprite_sheet,
-        animation::AnimationSM::new(
-            vec![
-                animation::Animation::new(
-                    vec![
-                        Rect {
-                            x: 0,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 30,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 60,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 90,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 120,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 150,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 180,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 210,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                    ],
-                    vec![10; 8],
-                    frame_count,
-                    true,
-                ),
-                animation::Animation::new(
-                    vec![Rect {
-                        x: 60,
-                        y: 0,
-                        w: 30,
-                        h: 30,
-                    }],
-                    vec![60],
-                    frame_count,
-                    true,
-                ),
-            ],
-            vec![
-                (1, 0, String::from("move_up")),
-                (0, 1, String::from("stop_moving")),
-            ],
-            frame_count,
-            1,
-        ),
-        Vec2i(350, 500),
-    );
-
-    let enemy_sprite = Sprite::new(
-        &sprite_sheet,
-        animation::AnimationSM::new(
-            vec![
-                animation::Animation::new(
-                    vec![
-                        Rect {
-                            x: 0,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 30,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 60,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 90,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 120,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 150,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 180,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                        Rect {
-                            x: 210,
-                            y: 120,
-                            w: 30,
-                            h: 30,
-                        },
-                    ],
-                    vec![10; 8],
-                    frame_count,
-                    true,
-                ),
-                animation::Animation::new(
-                    vec![Rect {
-                        x: 60,
-                        y: 0,
-                        w: 30,
-                        h: 30,
-                    }],
-                    vec![60],
-                    frame_count,
-                    true,
-                ),
-            ],
-            vec![
-                (1, 0, String::from("move_up")),
-                (0, 1, String::from("stop_moving")),
-            ],
-            frame_count,
-            1,
-        ),
-        Vec2i(30, 30),
-    );
+    let player_sprite = assets::player_anim(&sprite_sheet, frame_count);
 
     // Player entity
     let mut player = Entity {
-        collider: Mobile::player(350, 500),
-        position: Vec2i(350, 500),
+        collider: Mobile::player(180, 500),
+        position: Vec2i(180, 500),
         sprite: player_sprite,
-    };
-
-    let mut enemy1 = Entity {
-        collider: Mobile::enemy(30, 30, 100),
-        position: Vec2i(30, 30),
-        sprite: enemy_sprite,
     };
 
     // Initial game state
@@ -281,7 +131,7 @@ fn main() {
         // entities: vec![player],
         tilemaps,
         terrains: vec![],
-        mobiles: vec![player,enemy1],
+        mobiles: vec![player],
         projs: vec![],
         frame_count: 0,
         scroll: Vec2i(0, 0),
@@ -294,17 +144,17 @@ fn main() {
     // Track end of the last frame
     let mut since = Instant::now(); //TODO: This seems to be similar?
     event_loop.run(move |event, _, control_flow| {
-
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
             let mut screen = Screen::wrap(pixels.get_frame(), WIDTH, HEIGHT, DEPTH, state.scroll);
-            screen.clear(Rgba(0, 0, 0, 0));
 
             // Load and unload tilemaps if necessary
             update_tilemaps(&mut state);
 
             // Draw current game
+            let draw_time = Instant::now();
             draw_game(&mut state, &mut screen, frame_count);
+            // println!("draw time {}", draw_time.elapsed().as_secs_f64());
 
             // Flip buffers
             if pixels.render().is_err() {
@@ -335,10 +185,11 @@ fn main() {
             // Eat up one frame worth of time
             available_time -= DT;
 
-            update_game(&mut state, &input, frame_count);
+            update_game(&mut state, &input, &tile_sheet, frame_count);
 
             // add new enemy
-            if state.frame_count%180 == 0{
+            /*
+            if state.frame_count % 180 == 0 {
                 let enemy_sprite_loop = Sprite::new(
                     &sprite_sheet,
                     animation::AnimationSM::new(
@@ -419,7 +270,7 @@ fn main() {
                     ),
                     Vec2i(30, 30),
                 );
-            
+
                 let mut enemy_loop = Entity {
                     collider: Mobile::enemy(30, 30, 100),
                     position: Vec2i(30, 30),
@@ -428,6 +279,7 @@ fn main() {
                 state.mobiles.push(enemy_loop);
                 println!("pushed new enemy");
             }
+            */
 
             // Increment the frame counter
             frame_count += 1;
@@ -456,7 +308,7 @@ fn update_tilemaps(state: &mut GameState) {
         let mut rng = rand::thread_rng();
         let tile_idx = rng.gen_range(0..state.tilemaps[0].tileset.tile_ids["ground"].len());
         let tile_id = state.tilemaps[0].tileset.tile_ids["ground"][tile_idx];
-        println!("tile_id {}", tile_id);
+        // println!("tile_id {}", tile_id);
 
         let new_map = Tilemap::new(
             Vec2i(
@@ -473,11 +325,18 @@ fn update_tilemaps(state: &mut GameState) {
 
 fn draw_game(state: &mut GameState, screen: &mut Screen, frame_count: usize) {
     // Call screen's drawing methods to render the game state
-    screen.clear(Rgba(80, 80, 80, 255));
+    let draw_time = Instant::now();
+    screen.clear(Rgba(255, 197, 148, 255));
+    // println!("clear time {}", draw_time.elapsed().as_secs_f64());
 
+    /*
+    let draw_time = Instant::now();
     for map in state.tilemaps.iter() {
+        println!("map");
         map.draw(screen);
     }
+    println!("draw map time {}", draw_time.elapsed().as_secs_f64());
+    */
 
     for proj in state.projs.iter() {
         screen.rect(proj.rect, Rgba(0, 128, 0, 255));
@@ -486,38 +345,51 @@ fn draw_game(state: &mut GameState, screen: &mut Screen, frame_count: usize) {
     for e in state.mobiles.iter_mut() {
         screen.draw_sprite(&mut e.sprite, frame_count);
     }
+
+    for e in state.terrains.iter_mut() {
+        screen.draw_sprite(&mut e.sprite, frame_count);
+    }
 }
 
-fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
+fn update_game(
+    state: &mut GameState,
+    input: &WinitInputHelper,
+    tile_sheet: &Rc<Texture>,
+    frame: usize,
+) {
     state.frame_count += 1;
     state.scroll.1 -= 1;
 
+    if state.frame_count == 10 {
+        generate_terrain(state, tile_sheet, frame, 0);
+    }
+
     // Update player position
     // Player control goes here
-    if input.key_pressed(VirtualKeyCode::Right) {
-        state.mobiles[0].move_pos(2, 0);
+    if input.key_held(VirtualKeyCode::Right) {
+        state.mobiles[0].move_pos(3, 0);
+        state.mobiles[0]
+            .sprite
+            .animation_sm
+            .input("stop_moving", frame);
+    } else if input.key_held(VirtualKeyCode::Left) {
+        state.mobiles[0].move_pos(-3, 0);
         state.mobiles[0]
             .sprite
             .animation_sm
             .input("stop_moving", frame);
     }
-    if input.key_pressed(VirtualKeyCode::Left) {
-        state.mobiles[0].move_pos(-2, 0);
-        state.mobiles[0]
-            .sprite
-            .animation_sm
-            .input("stop_moving", frame);
-    }
-    if input.key_pressed(VirtualKeyCode::Up) {
-        state.mobiles[0].move_pos(0, -10);
+    if input.key_held(VirtualKeyCode::Up) {
+        state.mobiles[0].move_pos(0, -4);
         state.mobiles[0].sprite.animation_sm.input("move_up", frame);
-    }
-    if input.key_pressed(VirtualKeyCode::Down) {
-        state.mobiles[0].move_pos(0, 10);
+    } else if input.key_held(VirtualKeyCode::Down) {
+        state.mobiles[0].move_pos(0, 2);
         state.mobiles[0]
             .sprite
             .animation_sm
             .input("stop_moving", frame);
+    } else {
+        state.mobiles[0].move_pos(0, -1);
     }
 
     // Update proj position
@@ -527,15 +399,10 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
 
     // Detect collisions: Generate contacts
     let mut contacts: Vec<Contact> = vec![];
-    collision::gather_contacts(
-        &state.terrains,
-        &state.mobiles,
-        &state.projs,
-        &mut contacts,
-    );
+    collision::gather_contacts(&state.terrains, &state.mobiles, &state.projs, &mut contacts);
 
     // Handle collisions
-    let (player_is_alive,scores_gained) = collision::handle_contact(
+    let (player_is_alive, scores_gained) = collision::handle_contact(
         &mut state.terrains,
         &mut state.mobiles,
         &mut state.projs,
@@ -549,9 +416,8 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
         state.score += scores_gained;
     }
 
-
     // fire!
-    if state.frame_count%10==0 {
+    if state.frame_count % 10 == 0 {
         //shooting speed control goes here
         // state.frame_count = 0;
         // state.projs.push(Projectile::new(&state.mobiles[0]));
@@ -567,4 +433,75 @@ fn update_game(state: &mut GameState, input: &WinitInputHelper, frame: usize) {
     }
 
     // Update game rules: What happens when the player touches things?
+}
+
+/**
+ * Randomly picks hexadecimal string of length 4 and uses it to generate terrain objects.
+ *
+ * terrain_type: 0 = random rocks, 1 = wall with some rocks
+ */
+fn generate_terrain(
+    state: &mut GameState,
+    tile_sheet: &Rc<Texture>,
+    frame_count: usize,
+    terrain_type: usize,
+) {
+    let mut rng = rand::thread_rng();
+
+    let WALL_SZ = 32;
+    let ROCK_SZ = 16;
+
+    if terrain_type == 0 {
+        for i in 0..(WIDTH / ROCK_SZ) {
+            for j in 0..6 {
+                if rng.gen_range(0..6) == 0 {
+                    let pos = Vec2i(
+                        (i * ROCK_SZ) as i32,
+                        state.scroll.1 - (ROCK_SZ * (j + 1)) as i32,
+                    );
+                    state
+                        .terrains
+                        .push(rock_entity(tile_sheet, frame_count, pos));
+                }
+            }
+        }
+    } else if terrain_type == 1 {
+        let seed = rng.gen_range(0..256);
+        for i in 0..(WIDTH / WALL_SZ) {
+            // ~1/3 chance of adding rocks instead of walls for 3 slots
+            if ((seed + i) / 3) % 3 == 0 {
+                let pos1 = Vec2i((i * WALL_SZ) as i32, state.scroll.1 - WALL_SZ as i32);
+                let pos2 = Vec2i(
+                    (i * WALL_SZ + ROCK_SZ) as i32,
+                    state.scroll.1 - WALL_SZ as i32,
+                );
+                let pos3 = Vec2i(
+                    (i * WALL_SZ) as i32,
+                    state.scroll.1 - WALL_SZ as i32 + ROCK_SZ as i32,
+                );
+                let pos4 = Vec2i(
+                    (i * WALL_SZ + ROCK_SZ) as i32,
+                    state.scroll.1 - WALL_SZ as i32 + ROCK_SZ as i32,
+                );
+
+                state
+                    .terrains
+                    .push(rock_entity(tile_sheet, frame_count, pos1));
+                state
+                    .terrains
+                    .push(rock_entity(tile_sheet, frame_count, pos2));
+                state
+                    .terrains
+                    .push(rock_entity(tile_sheet, frame_count, pos3));
+                state
+                    .terrains
+                    .push(rock_entity(tile_sheet, frame_count, pos4));
+            } else {
+                let pos = Vec2i((i * WALL_SZ) as i32, state.scroll.1 - WALL_SZ as i32);
+                state
+                    .terrains
+                    .push(wall_entity(tile_sheet, frame_count, pos));
+            }
+        }
+    }
 }
