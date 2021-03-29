@@ -68,7 +68,7 @@ const WIDTH: usize = 320;
 const HEIGHT: usize = 576;
 const DEPTH: usize = 4;
 
-const TILEMAP_HT: usize = 128;
+const TILEMAP_HT: usize = 256;
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -296,9 +296,9 @@ fn draw_game(
     cleanup_terrain(state, screen);
 
     // let timer = Instant::now();
-    // for map in state.tilemaps.iter() {
-    //     map.draw(screen);
-    // }
+    for map in state.tilemaps.iter() {
+        map.draw(screen);
+    }
     // if frame_count % 180 == 0 {
     //     println!(
     //         "map {}, len {}",
