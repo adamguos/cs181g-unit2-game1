@@ -23,6 +23,7 @@ enum ColliderID {
     Terrain(usize),
     Mobile(usize),
     Projectile(usize),
+    Wall(usize),
 }
 
 /*
@@ -60,6 +61,7 @@ pub(crate) struct Contact {
 #[derive(Clone)]
 pub struct Terrain {
     pub rect: Rect,
+    pub created_at: usize,
     pub destructible: bool,
     pub hp: usize,
 }
@@ -74,21 +76,17 @@ impl Collider for Terrain {
         self.rect.y = y;
     }
 }
-/*
+
 impl Terrain {
-    fn new(x: i32, y: i32) -> Self {
+    pub fn new(rect: Rect, created_at: usize, destructible: bool, hp: usize) -> Self {
         Self {
-            rect: Rect {
-                x: x,
-                y: y,
-                w: 20,
-                h: 20,
-            },
-            hp: 300,
+            rect: rect,
+            created_at: created_at,
+            destructible: destructible,
+            hp: hp,
         }
     }
 }
-*/
 
 /*
    Mobiles would need to be able to move freely. We would require its hitbox to be rect.
@@ -96,9 +94,9 @@ impl Terrain {
 #[derive(Clone)]
 pub struct Mobile {
     pub rect: Rect,
-    vx: i32,
-    vy: i32,
-    hp: usize,
+    pub vx: f32,
+    pub vy: f32,
+    pub hp: usize,
 }
 impl Collider for Mobile {
     fn move_pos(&mut self, dx: i32, dy: i32) {
@@ -112,17 +110,12 @@ impl Collider for Mobile {
     }
 }
 impl Mobile {
-    pub fn enemy(x: i32, y: i32, hp: usize) -> Self {
+    pub fn enemy(rect: Rect, vx: f32, vy: f32, hp: usize) -> Self {
         Self {
-            rect: Rect {
-                x: x,
-                y: y,
-                w: 30,
-                h: 30,
-            },
-            vx: 0,
-            vy: 4,
-            hp: 50,
+            rect: rect,
+            vx: vx,
+            vy: vy,
+            hp: hp,
         }
     }
 
@@ -134,8 +127,8 @@ impl Mobile {
                 w: 36,
                 h: 25,
             },
-            vx: 0,
-            vy: 0,
+            vx: 0.0,
+            vy: 0.0,
             hp: 100,
         }
     }
@@ -187,6 +180,26 @@ impl Projectile {
     }
 }
 
+pub struct Wall {
+    rect: Rect,
+}
+impl Collider for Wall {
+    fn move_pos(&mut self, dx: i32, dy: i32) {
+        self.rect.x += dx;
+        self.rect.y += dy;
+    }
+
+    fn set_pos(&mut self, x: i32, y: i32) {
+        self.rect.x = x;
+        self.rect.y = y;
+    }
+}
+impl Wall {
+    pub fn new(rect: Rect) -> Self {
+        Self { rect: rect }
+    }
+}
+
 // pixels gives us an rgba8888 framebuffer
 fn clear(fb: &mut [u8], c: Color) {
     // Four bytes per pixel; chunks_exact_mut gives an iterator over 4-element slices.
@@ -210,11 +223,25 @@ fn rect(fb: &mut [u8], r: Rect, c: Color) {
     }
 }
 
+fn rect_displacement(r1: Rect, r2: Rect) -> Option<(i32, i32)> {
+    let x_overlap = (r1.x + r1.w as i32).min(r2.x + r2.w as i32) - r1.x.max(r2.x);
+    let y_overlap = (r1.y + r1.h as i32).min(r2.y + r2.h as i32) - r1.y.max(r2.y);
+    if x_overlap > 0 && y_overlap > 0 {
+        if x_overlap.abs() > y_overlap.abs() {
+            Some((0, y_overlap))
+        } else {
+            Some((x_overlap, 0))
+        }
+    } else {
+        None
+    }
+}
+
 // Here we will be using push() on into, so it can't be a slice
 pub(crate) fn gather_contacts(
     terrains: &[Entity<Terrain>],
-    // mobiles: &[Mobile],
     mobiles: &[Entity<Mobile>],
+    walls: &[Wall],
     projs: &[Projectile],
     into: &mut Vec<Contact>,
 ) {
@@ -264,6 +291,34 @@ pub(crate) fn gather_contacts(
                     a: ColliderID::Mobile(ai),
                     b: ColliderID::Terrain(bi),
                     mtv: (0, 0),
+                };
+
+                into.push(contact);
+            }
+        }
+    }
+    // collide mobiles against walls
+    for (ai, a) in mobiles.iter().enumerate() {
+        let a = &a.collider;
+        for (bi, b) in walls.iter().enumerate() {
+            if !separating_axis(
+                a.rect.x,
+                a.rect.x + a.rect.w as i32,
+                b.rect.x,
+                b.rect.x + b.rect.w as i32,
+            ) && !separating_axis(
+                a.rect.y,
+                a.rect.y + a.rect.h as i32,
+                b.rect.y,
+                b.rect.y + b.rect.h as i32,
+            ) {
+                let contact = Contact {
+                    a: ColliderID::Mobile(ai),
+                    b: ColliderID::Wall(bi),
+                    mtv: match rect_displacement(a.rect, b.rect) {
+                        Some((x, y)) => (x, y),
+                        None => (0, 0),
+                    },
                 };
 
                 into.push(contact);
@@ -332,13 +387,16 @@ pub(crate) fn handle_contact(
     projs: &mut Vec<Projectile>,
     contacts: &mut Vec<Contact>,
 ) -> (bool, usize) {
+    // Restitute before calculating hp to avoid restituting objects after they die
+    restitute(terrains, mobiles, contacts);
+
     // We first modify the hp of the collision objects.
     for contact in contacts.iter() {
         match (contact.a, contact.b) {
             // By design a contact will always be MM MT PM PT
             // MT collide will kill the mobile
             // MM collide will destroy the lower hp mobile and cause 30 pt damage to the higher hp mobile
-            (ColliderID::Mobile(a), ColliderID::Terrain(b)) => {
+            (ColliderID::Mobile(a), ColliderID::Terrain(_)) => {
                 mobiles[a].collider.hp = 0;
             }
             (ColliderID::Mobile(a), ColliderID::Mobile(b)) => {
@@ -383,26 +441,63 @@ pub(crate) fn handle_contact(
     }
     let player_is_alive = mobiles[0].collider.hp != 0;
     terrains.retain(|terrain| terrain.collider.hp > 0);
-    println!("{}", terrains.len());
     let ori = mobiles.len();
     mobiles.retain(|mobile| mobile.collider.hp > 0);
     let new = mobiles.len();
     projs.retain(|proj| proj.hp > 0);
+
     (player_is_alive, ori - new)
 }
 
-fn restitute(statics: &[Terrain], dynamics: &mut [Mobile], contacts: &mut [Contact]) {
-    // handle restitution of dynamics against dynamics and dynamics against statics wrt contacts.
-    // You could instead make contacts `Vec<Contact>` if you think you might remove contacts.
-    // You could also add an additional parameter, a slice or vec representing how far we've displaced each dynamic, to avoid allocations if you track a vec of how far things have been moved.
-    // You might also want to pass in another &mut Vec<Contact> to be filled in with "real" touches that actually happened.
+fn restitute(
+    statics: &[Entity<Terrain>],
+    dynamics: &mut [Entity<Mobile>],
+    contacts: &mut [Contact],
+) {
     contacts.sort_unstable_by_key(|c| -(c.mtv.0 * c.mtv.0 + c.mtv.1 * c.mtv.1));
-    // Keep going!  Note that you can assume every contact has a dynamic object in .a.
-    // You might decide to tweak the interface of this function to separately take dynamic-static and dynamic-dynamic contacts, to avoid a branch inside of the response calculation.
-    // Or, you might decide to calculate signed mtvs taking direction into account instead of the unsigned displacements from rect_displacement up above.  Or calculate one MTV per involved entity, then apply displacements to both objects during restitution (sorting by the max or the sum of their magnitudes)
+
+    for contact in contacts.iter() {
+        match (contact.a, contact.b) {
+            (ColliderID::Mobile(ai), ColliderID::Wall(_)) => {
+                dynamics[ai].move_pos(
+                    -contact.mtv.0 * dynamics[ai].collider.vx.signum() as i32,
+                    -contact.mtv.1 * (dynamics[ai].collider.vy + 1.0).signum() as i32,
+                );
+
+                if contact.mtv.0 != 0 {
+                    dynamics[ai].collider.vx = 0.0;
+                }
+                if contact.mtv.1 != 0 {
+                    // set vy = -1 because camera is scrolling up -1 pixels per frame
+                    // need this or AI will get to the bottom of the screen
+                    dynamics[ai].collider.vy = -1.0;
+                }
+            }
+            /*
+            (ColliderID::Mobile(ai), ColliderID::Mobile(bi)) => {
+                dynamics[ai].move_pos(
+                    -contact.mtv.0 * dynamics[ai].collider.vx.signum() as i32,
+                    -contact.mtv.1 * (dynamics[ai].collider.vy + 1.0).signum() as i32,
+                );
+
+                if contact.mtv.0 != 0 {
+                    dynamics[ai].collider.vx = 0.0;
+                    dynamics[bi].collider.vx = 0.0;
+                }
+                if contact.mtv.1 != 0 {
+                    // set vy = -1 because camera is scrolling up -1 pixels per frame
+                    // for same reason as above
+                    dynamics[ai].collider.vy = -1.0;
+                    dynamics[bi].collider.vy = -1.0;
+                }
+            }
+            */
+            _ => (),
+        }
+    }
 }
 
 fn separating_axis(ax1: i32, ax2: i32, bx1: i32, bx2: i32) -> bool {
     assert!(ax1 <= ax2 && bx1 <= bx2);
-    ax2 < bx1 || bx2 < ax1
+    ax2 <= bx1 || bx2 <= ax1
 }

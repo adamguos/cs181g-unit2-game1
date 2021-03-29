@@ -45,6 +45,13 @@ impl<'fb> Screen<'fb> {
         }
     }
 
+    pub fn is_visible(&self, object: Rect) -> bool {
+        !(object.x > self.position.0 + self.width as i32
+            || object.y > self.position.1 + self.height as i32
+            || object.x + (object.w as i32) < self.position.0
+            || object.y + (object.h as i32) < self.position.1)
+    }
+
     // Our old, slow friend draw_at, now with super scrolling powers!
     #[inline(always)]
     pub fn draw_at(&mut self, col: Rgba, Vec2i(x, y): Vec2i) {

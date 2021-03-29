@@ -31,39 +31,8 @@ impl<T: Collider> Entity<T> {
 
         self.collider.move_pos(dx, dy);
 
-        /*
-        if let ColliderType::Mobile(ref mut mobile) = self.collider {
-            mobile.rect.x += dx;
-            mobile.rect.y += dy;
-        }
-
-        if let ColliderType::Projectile(ref mut projectile) = self.collider {
-            projectile.rect.x += dx;
-            projectile.rect.y += dy;
-        }
-
-        if let ColliderType::Mobile(ref mut terrain) = self.collider {
-            terrain.rect.x += dx;
-            terrain.rect.y += dy;
-        }
-        */
-
-        /*
-        match &self.collider {
-            ColliderType::Mobile(mobile) => {
-                mobile.move_pos(dx, dy);
-                mobile.rect.y += dy;
-            }
-            ColliderType::Projectile(projectile) => {
-                projectile.rect.x += dx;
-                projectile.rect.y += dy;
-            }
-            ColliderType::Terrain(terrain) => {
-                terrain.rect.x += dx;
-                terrain.rect.y += dy;
-            }
-        }
-        */
+        self.position.0 += dx;
+        self.position.1 += dy;
     }
 
     fn align(&mut self) {
