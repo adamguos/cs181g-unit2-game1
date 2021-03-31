@@ -1,11 +1,7 @@
-use std::cmp::max;
-
+use crate::entity::Entity;
 use crate::types::Rect;
-use crate::{entity::Entity, types::Vec2i};
 
 // seconds per frame
-const DT: f64 = 1.0 / 60.0;
-
 const DEPTH: usize = 4;
 const WIDTH: usize = 512;
 const HEIGHT: usize = 480;
@@ -13,10 +9,6 @@ const PITCH: usize = WIDTH * DEPTH;
 
 // We'll make our Color type an RGBA8888 pixel.
 type Color = [u8; DEPTH];
-
-const CLEAR_COL: Color = [32, 32, 64, 255];
-const WALL_COL: Color = [200, 200, 200, 255];
-const PLAYER_COL: Color = [255, 128, 128, 255];
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum ColliderID {
@@ -97,6 +89,7 @@ pub struct Mobile {
     pub vx: f32,
     pub vy: f32,
     pub hp: usize,
+    pub is_player: bool,
 }
 impl Collider for Mobile {
     fn move_pos(&mut self, dx: i32, dy: i32) {
@@ -116,6 +109,7 @@ impl Mobile {
             vx: vx,
             vy: vy,
             hp: hp,
+            is_player: false,
         }
     }
 
@@ -130,9 +124,11 @@ impl Mobile {
             vx: 0.0,
             vy: 0.0,
             hp: 100,
+            is_player: true,
         }
     }
 
+    #[allow(dead_code)]
     pub fn move_pos(&mut self, dx: i32, dy: i32) {
         self.rect.x += dx;
         self.rect.y += dy;
@@ -171,7 +167,7 @@ impl Projectile {
             },
             vx: 0.0,
             vy: -10.0,
-            hp: 10,
+            hp: 4,
         }
     }
 
@@ -201,6 +197,7 @@ impl Wall {
 }
 
 // pixels gives us an rgba8888 framebuffer
+#[allow(dead_code)]
 fn clear(fb: &mut [u8], c: Color) {
     // Four bytes per pixel; chunks_exact_mut gives an iterator over 4-element slices.
     // So this way we can use copy_from_slice to copy our color slice into px very quickly.
@@ -395,25 +392,29 @@ pub(crate) fn handle_contact(
         match (contact.a, contact.b) {
             // By design a contact will always be MM MT PM PT
             // MT collide will kill the mobile
-            // MM collide will destroy the lower hp mobile and cause 30 pt damage to the higher hp mobile
+            // MM collide will destroy the lower hp mobile and cause 30 pt damage to the higher hp mobile, except enemies don't damage each other
             (ColliderID::Mobile(a), ColliderID::Terrain(_)) => {
-                mobiles[a].collider.hp = 0;
+                if mobiles[a].collider.is_player {
+                    mobiles[a].collider.hp = 0;
+                }
             }
             (ColliderID::Mobile(a), ColliderID::Mobile(b)) => {
-                if mobiles[a].collider.hp > mobiles[b].collider.hp {
-                    mobiles[b].collider.hp = 0;
-                    mobiles[a].collider.hp = if mobiles[a].collider.hp >= 30 {
-                        mobiles[a].collider.hp - 30
+                if mobiles[a].collider.is_player || mobiles[b].collider.is_player {
+                    if mobiles[a].collider.hp > mobiles[b].collider.hp {
+                        mobiles[b].collider.hp = 0;
+                        mobiles[a].collider.hp = if mobiles[a].collider.hp >= 30 {
+                            mobiles[a].collider.hp - 30
+                        } else {
+                            0
+                        };
                     } else {
-                        0
-                    };
-                } else {
-                    mobiles[a].collider.hp = 0;
-                    mobiles[b].collider.hp = if mobiles[b].collider.hp >= 30 {
-                        mobiles[b].collider.hp - 30
-                    } else {
-                        0
-                    };
+                        mobiles[a].collider.hp = 0;
+                        mobiles[b].collider.hp = if mobiles[b].collider.hp >= 30 {
+                            mobiles[b].collider.hp - 30
+                        } else {
+                            0
+                        };
+                    }
                 }
             }
             (ColliderID::Projectile(a), ColliderID::Terrain(b)) => {
@@ -442,7 +443,7 @@ pub(crate) fn handle_contact(
     let player_is_alive = mobiles[0].collider.hp != 0;
     terrains.retain(|terrain| terrain.collider.hp > 0);
     let ori = mobiles.len();
-    mobiles.retain(|mobile| mobile.collider.hp > 0);
+    mobiles.retain(|mobile| mobile.collider.hp > 0 || mobile.collider.is_player);
     let new = mobiles.len();
     projs.retain(|proj| proj.hp > 0);
 
@@ -450,7 +451,7 @@ pub(crate) fn handle_contact(
 }
 
 fn restitute(
-    statics: &[Entity<Terrain>],
+    _statics: &[Entity<Terrain>],
     dynamics: &mut [Entity<Mobile>],
     contacts: &mut [Contact],
 ) {

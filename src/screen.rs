@@ -27,10 +27,12 @@ impl<'fb> Screen<'fb> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn size(&self) -> (usize, usize) {
         (self.width, self.height)
     }
 
+    #[allow(dead_code)]
     pub fn move_pos(&mut self, dx: i32, dy: i32) {
         self.position.0 += dx;
         self.position.1 += dy;
@@ -54,6 +56,7 @@ impl<'fb> Screen<'fb> {
 
     // Our old, slow friend draw_at, now with super scrolling powers!
     #[inline(always)]
+    #[allow(dead_code)]
     pub fn draw_at(&mut self, col: Rgba, Vec2i(x, y): Vec2i) {
         let x = x - self.position.0;
         let y = y - self.position.1;

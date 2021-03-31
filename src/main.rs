@@ -1,10 +1,9 @@
 use pixels::{Pixels, SurfaceTexture};
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
 use std::time::Instant;
-use std::{thread, time};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -27,7 +26,6 @@ mod tiles;
 use tiles::{Tile, Tilemap, Tileset, TILE_SZ};
 
 mod animation;
-use animation::{Animation, AnimationSM};
 
 mod sprite;
 use sprite::*;
@@ -45,8 +43,6 @@ struct GameState {
     mobiles: Vec<Entity<Mobile>>,
     walls: Vec<Wall>,
     projs: Vec<Projectile>,
-    flags: HashMap<String, bool>,
-    counters: HashMap<String, i32>,
     stage: GameStage,
     frame_count: usize,
     scroll: Vec2i,
@@ -54,11 +50,11 @@ struct GameState {
     game_over: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum GameStage {
     Rocks(bool, usize),
     Boulders(usize),
-    Boss,
+    GameOver(usize),
 }
 
 // seconds per frame
@@ -67,8 +63,13 @@ const DT: f64 = 1.0 / 60.0;
 const WIDTH: usize = 320;
 const HEIGHT: usize = 576;
 const DEPTH: usize = 4;
-
 const TILEMAP_HT: usize = 256;
+
+const WALL_SZ: usize = 32;
+const ROCK_SZ: usize = 16;
+
+// player shoots every PROJ_DT frames
+const PROJ_DT: usize = 6;
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -94,9 +95,6 @@ fn main() {
     )));
     let font_sheet = Rc::new(Texture::with_file(Path::new("content/monospace_font.png")));
 
-    // How many frames have we simulated?
-    let mut frame_count: usize = 0;
-
     // Tiles
     let mut terrain_tile_ids = HashMap::new();
     terrain_tile_ids.insert(
@@ -111,23 +109,6 @@ fn main() {
         terrain_tile_ids,
     ));
 
-    /*
-    let tilemaps = vec![
-        Tilemap::new(
-            Vec2i(0, 0),
-            (WIDTH / TILE_SZ, HEIGHT / TILE_SZ),
-            &tileset,
-            vec![3169; (WIDTH / TILE_SZ) * (HEIGHT / TILE_SZ)],
-        ),
-        Tilemap::new(
-            Vec2i(0, TILEMAP_HT as i32),
-            (WIDTH / TILE_SZ, HEIGHT / TILE_SZ),
-            &tileset,
-            vec![2095; (WIDTH / TILE_SZ) * (HEIGHT / TILE_SZ)],
-        ),
-    ];
-    */
-
     let mut tilemaps: Vec<Tilemap> = vec![];
     for i in 0..(HEIGHT / TILEMAP_HT + 1) {
         tilemaps.push(Tilemap::new(
@@ -139,7 +120,7 @@ fn main() {
     }
 
     // Player sprite
-    let player_sprite = assets::player_anim(&sprite_sheet, frame_count);
+    let player_sprite = assets::player_anim(&sprite_sheet, 0);
 
     // Player entity
     let player = Entity {
@@ -163,8 +144,6 @@ fn main() {
         mobiles: vec![player],
         walls: walls_vec(WIDTH as u16, HEIGHT as u16),
         projs: vec![],
-        flags: flags,
-        counters: counters,
         stage: GameStage::Rocks(true, 1),
         frame_count: 0,
         scroll: Vec2i(0, 0),
@@ -184,16 +163,7 @@ fn main() {
             update_tilemaps(&mut state);
 
             // Draw current game
-            // let timer = Instant::now();
-            draw_game(&mut state, &mut screen, &font_sheet, frame_count);
-            // if frame_count % 180 == 0 {
-            //     println!("draw {}", timer.elapsed().as_millis());
-            // }
-
-            if state.game_over {
-                *control_flow = ControlFlow::Exit;
-                main();
-            }
+            draw_game(&mut state, &mut screen, &font_sheet);
 
             // Flip buffers
             if pixels.render().is_err() {
@@ -206,6 +176,14 @@ fn main() {
             available_time += since.elapsed().as_secs_f64();
         }
 
+        // Game over event
+        if let GameStage::GameOver(death_frame) = state.stage {
+            if state.frame_count - death_frame >= 150 {
+                *control_flow = ControlFlow::Exit;
+                main();
+            }
+        }
+
         // Handle input events
         if input.update(event) {
             // Close events
@@ -213,6 +191,7 @@ fn main() {
                 *control_flow = ControlFlow::Exit;
                 return;
             }
+
             // Resize the window if needed
             if let Some(size) = input.window_resized() {
                 pixels.resize(size.width, size.height);
@@ -223,7 +202,9 @@ fn main() {
         while available_time >= DT {
             // Eat up one frame worth of time
             available_time -= DT;
-            update_game(&mut state, &input, &sprite_sheet, &tile_sheet, frame_count);
+            if !state.game_over {
+                update_game(&mut state, &input, &sprite_sheet, &tile_sheet);
+            }
 
             // Increment the frame counter
             state.frame_count += 1;
@@ -266,57 +247,27 @@ fn update_tilemaps(state: &mut GameState) {
     }
 }
 
-fn draw_game(
-    state: &mut GameState,
-    screen: &mut Screen,
-    font_sheet: &Rc<Texture>,
-    frame_count: usize,
-) {
+fn draw_game(state: &mut GameState, screen: &mut Screen, font_sheet: &Rc<Texture>) {
     // Call screen's drawing methods to render the game state
     screen.clear(Rgba(255, 197, 255, 255));
-
-    if state.game_over {
-        draw_string(
-            "Game over",
-            screen,
-            font_sheet,
-            Vec2i(80, 200),
-            state.scroll,
-        );
-        draw_string(
-            "Restarting",
-            screen,
-            font_sheet,
-            Vec2i(80, 250),
-            state.scroll,
-        );
-    }
 
     // Remove Terrain objects that have left screen
     cleanup_terrain(state, screen);
 
-    // let timer = Instant::now();
     for map in state.tilemaps.iter() {
         map.draw(screen);
     }
-    // if frame_count % 180 == 0 {
-    //     println!(
-    //         "map {}, len {}",
-    //         timer.elapsed().as_millis(),
-    //         state.tilemaps.len()
-    //     );
-    // }
 
     for proj in state.projs.iter() {
         screen.rect(proj.rect, Rgba(0, 128, 0, 255));
     }
 
     for e in state.mobiles.iter_mut() {
-        screen.draw_sprite(&mut e.sprite, frame_count);
+        screen.draw_sprite(&mut e.sprite, state.frame_count);
     }
 
     for e in state.terrains.iter_mut() {
-        screen.draw_sprite(&mut e.sprite, frame_count);
+        screen.draw_sprite(&mut e.sprite, state.frame_count);
     }
 
     // Draw HP bar
@@ -370,6 +321,24 @@ fn draw_game(
     let mut score_msg = "Score ".to_string();
     score_msg.push_str(&state.score.to_string());
     draw_string(&score_msg, screen, font_sheet, Vec2i(20, 20), state.scroll);
+
+    // Draw game over message if game is over
+    if let GameStage::GameOver(_) = state.stage {
+        draw_string(
+            "Game over",
+            screen,
+            font_sheet,
+            Vec2i(80, 200),
+            state.scroll,
+        );
+        draw_string(
+            "Restarting",
+            screen,
+            font_sheet,
+            Vec2i(80, 250),
+            state.scroll,
+        );
+    }
 }
 
 fn update_game(
@@ -377,15 +346,14 @@ fn update_game(
     input: &WinitInputHelper,
     sprite_sheet: &Rc<Texture>,
     tile_sheet: &Rc<Texture>,
-    frame: usize,
 ) {
     state.scroll.1 -= 1;
 
     match state.stage {
         GameStage::Rocks(spawning_enemies, num_waves) => {
-            // spawn rocks every 180 frames
-            if state.frame_count % 180 == 120 {
-                generate_terrain(state, tile_sheet, frame, 0);
+            // spawn rocks every 360 frames
+            if state.frame_count % 360 == 120 {
+                generate_terrain(state, tile_sheet, 0);
             }
 
             // bool in Rocks keeps track of whether we are still spawning enemies
@@ -394,7 +362,7 @@ fn update_game(
                 if state.frame_count % 30 == 0 {
                     state.mobiles.push(enemy_entity(
                         sprite_sheet,
-                        frame,
+                        state.frame_count,
                         Vec2i(100, state.scroll.1 - 30),
                     ));
                 }
@@ -418,9 +386,9 @@ fn update_game(
         }
 
         GameStage::Boulders(num_waves) => {
-            // Spawn a boulder wall every 180 frames
-            if state.frame_count % 180 == 0 {
-                generate_terrain(state, tile_sheet, frame, 1);
+            // Spawn a boulder wall every n frames, number goes down as waves go up
+            if state.frame_count % (300 - num_waves * 8) == 0 {
+                generate_terrain(state, tile_sheet, 1);
                 // starts being possible to move on to next stage after wave 4
                 // guaranteed to move on after wave 7
                 let mut rng = rand::thread_rng();
@@ -432,24 +400,36 @@ fn update_game(
             }
         }
 
-        GameStage::Boss => {}
+        GameStage::GameOver(_) => {}
     }
 
     // Update player position
     // Player control goes here
-    if input.key_held(VirtualKeyCode::Right) {
-        state.mobiles[0].collider.vx = 3.0;
-    } else if input.key_held(VirtualKeyCode::Left) {
-        state.mobiles[0].collider.vx = -3.0;
-    } else {
-        state.mobiles[0].collider.vx = 0.0;
-    }
-    if input.key_held(VirtualKeyCode::Up) {
-        state.mobiles[0].collider.vy = -4.0;
-    } else if input.key_held(VirtualKeyCode::Down) {
-        state.mobiles[0].collider.vy = 2.0;
-    } else {
-        state.mobiles[0].collider.vy = -1.0;
+    match state.stage {
+        GameStage::Rocks(_, _) | GameStage::Boulders(_) => {
+            if input.key_held(VirtualKeyCode::Right) {
+                state.mobiles[0].collider.vx = 3.0;
+            } else if input.key_held(VirtualKeyCode::Left) {
+                state.mobiles[0].collider.vx = -3.0;
+            } else {
+                state.mobiles[0].collider.vx = 0.0;
+            }
+            if input.key_held(VirtualKeyCode::Up) {
+                state.mobiles[0].collider.vy = -4.0;
+            } else if input.key_held(VirtualKeyCode::Down) {
+                state.mobiles[0].collider.vy = 2.0;
+            } else {
+                state.mobiles[0].collider.vy = -1.0;
+            }
+
+            if input.key_held(VirtualKeyCode::O) {
+                state.stage = GameStage::Rocks(true, 1);
+            } else if input.key_held(VirtualKeyCode::P) {
+                state.stage = GameStage::Boulders(1);
+            }
+        }
+
+        GameStage::GameOver(_) => {}
     }
 
     // Update enemy AI movements
@@ -488,30 +468,27 @@ fn update_game(
         &mut contacts,
     );
 
-    if !player_is_alive {
-        state.score += scores_gained - 1;
-        state.game_over = true;
-        println!("Player is dead!");
-    } else {
-        state.score += scores_gained;
-    }
-
-    // fire!
-    if state.frame_count % 5 == 0 {
-        //shooting speed control goes here
-        // state.frame_count = 0;
-        // state.projs.push(Projectile::new(&state.mobiles[0]));
-        /*
-        if let ColliderType::Mobile(ref mobile) = state.entities[0].collider {
-            state.projs.push(Projectile::new(&mobile));
+    if let GameStage::Rocks(_, _) | GameStage::Boulders(_) = state.stage {
+        // Set GameOver stage if player is not alive
+        if !player_is_alive {
+            state.mobiles[0]
+                .sprite
+                .animation_sm
+                .input("die", state.frame_count);
+            state.mobiles[0].collider.vx = 0.0;
+            state.mobiles[0].collider.vy = -1.0;
+            state.stage = GameStage::GameOver(state.frame_count);
+        } else {
+            state.score += scores_gained;
         }
-        */
-        state
-            .projs
-            .push(Projectile::new(&state.mobiles[0].collider));
-    }
 
-    // Update game rules: What happens when the player touches things?
+        // Fire projectile
+        if state.frame_count % PROJ_DT == 0 {
+            state
+                .projs
+                .push(Projectile::new(&state.mobiles[0].collider));
+        }
+    }
 }
 
 /**
@@ -519,16 +496,8 @@ fn update_game(
  *
  * terrain_type: 0 = random rocks, 1 = wall with some rocks
  */
-fn generate_terrain(
-    state: &mut GameState,
-    tile_sheet: &Rc<Texture>,
-    frame_count: usize,
-    terrain_type: usize,
-) {
+fn generate_terrain(state: &mut GameState, tile_sheet: &Rc<Texture>, terrain_type: usize) {
     let mut rng = rand::thread_rng();
-
-    let WALL_SZ = 32;
-    let ROCK_SZ = 16;
 
     if terrain_type == 0 {
         for i in 0..(WIDTH / ROCK_SZ) {
@@ -540,7 +509,7 @@ fn generate_terrain(
                     );
                     state
                         .terrains
-                        .push(rock_entity(tile_sheet, frame_count, pos));
+                        .push(rock_entity(tile_sheet, state.frame_count, pos));
                 }
             }
         }
@@ -549,11 +518,11 @@ fn generate_terrain(
         for i in 0..(WIDTH / WALL_SZ) {
             // ~1/3 chance of adding rocks instead of walls for 3 slots
             if ((seed + i) / 3) % 3 == 0 {
-                let pos1 = Vec2i((i * WALL_SZ) as i32, state.scroll.1 - WALL_SZ as i32);
-                let pos2 = Vec2i(
-                    (i * WALL_SZ + ROCK_SZ) as i32,
-                    state.scroll.1 - WALL_SZ as i32,
-                );
+                // let pos1 = Vec2i((i * WALL_SZ) as i32, state.scroll.1 - WALL_SZ as i32);
+                // let pos2 = Vec2i(
+                //     (i * WALL_SZ + ROCK_SZ) as i32,
+                //     state.scroll.1 - WALL_SZ as i32,
+                // );
                 let pos3 = Vec2i(
                     (i * WALL_SZ) as i32,
                     state.scroll.1 - WALL_SZ as i32 + ROCK_SZ as i32,
@@ -563,23 +532,23 @@ fn generate_terrain(
                     state.scroll.1 - WALL_SZ as i32 + ROCK_SZ as i32,
                 );
 
+                // state
+                //     .terrains
+                //     .push(rock_entity(tile_sheet, state.frame_count, pos1));
+                // state
+                //     .terrains
+                //     .push(rock_entity(tile_sheet, state.frame_count, pos2));
                 state
                     .terrains
-                    .push(rock_entity(tile_sheet, frame_count, pos1));
+                    .push(rock_entity(tile_sheet, state.frame_count, pos3));
                 state
                     .terrains
-                    .push(rock_entity(tile_sheet, frame_count, pos2));
-                state
-                    .terrains
-                    .push(rock_entity(tile_sheet, frame_count, pos3));
-                state
-                    .terrains
-                    .push(rock_entity(tile_sheet, frame_count, pos4));
+                    .push(rock_entity(tile_sheet, state.frame_count, pos4));
             } else {
                 let pos = Vec2i((i * WALL_SZ) as i32, state.scroll.1 - WALL_SZ as i32);
                 state
                     .terrains
-                    .push(boulder_entity(tile_sheet, frame_count, pos));
+                    .push(boulder_entity(tile_sheet, state.frame_count, pos));
             }
         }
     }
@@ -620,20 +589,29 @@ fn update_enemies(state: &mut GameState) {
         }
         enemy.collider.vx += dx;
 
-        // Accelerate y upward if enemy is less than 100 above player
+        // Accelerate y upward if enemy is below player
         let dy = player_pos.1 - enemy.position.1;
-        if dy < 75 {
-            enemy.collider.vy -= 0.03;
+        let max_vy = 5.0;
+        if dy < 0 {
+            // enemy.collider.vy -= 0.03;
+            enemy.collider.vy = (enemy.collider.vy - 0.03).max(-max_vy);
+        }
+
+        // Accelerate y downward if enemy is above player
+        if dy > 0 {
+            // enemy.collider.vy += 0.03;
+            enemy.collider.vy = (enemy.collider.vy + 0.03).min(max_vy);
         }
 
         // Accelerate y downward if enemy is less than 50 away from top of screen
-        let dy = enemy.position.1 - state.scroll.1;
-        if dy < 75 {
-            enemy.collider.vy += 0.03;
-        }
+        // let dy = enemy.position.1 - state.scroll.1;
+        // if dy < 75 {
+        //     enemy.collider.vy += 0.03;
+        // }
 
         // Decelerate naturally (due to friction or something)
         // Note that base speed = (0.0, -1.0) due to camera scrolling upward
+
         if enemy.collider.vx > 0.0 {
             enemy.collider.vx = (enemy.collider.vx - 0.01).max(0.0);
         } else if enemy.collider.vx < 0.0 {

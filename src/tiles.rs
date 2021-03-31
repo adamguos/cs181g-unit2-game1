@@ -148,6 +148,7 @@ impl Tilemap {
         }
     }
 
+    #[allow(dead_code)]
     pub fn tile_id_at(&self, Vec2i(x, y): Vec2i) -> TileID {
         // Translate into map coordinates
         let x = (x - self.position.0) / TILE_SZ as i32;
@@ -168,10 +169,12 @@ impl Tilemap {
         self.map[y as usize * self.dims.0 + x as usize]
     }
 
+    #[allow(dead_code)]
     pub fn size(&self) -> (usize, usize) {
         self.dims
     }
 
+    #[allow(dead_code)]
     pub fn tile_at(&self, posn: Vec2i) -> Tile {
         self.tileset[self.tile_id_at(posn)]
     }

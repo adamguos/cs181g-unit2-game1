@@ -64,7 +64,7 @@ pub struct AnimationSM {
      */
     animations: Vec<Animation>,
     transitions: Vec<(usize, usize, String)>,
-    update_time: usize,
+    // update_time: usize,
     start_index: usize,
     current_anim: usize,
 }
@@ -73,13 +73,13 @@ impl AnimationSM {
     pub fn new(
         animations: Vec<Animation>,
         transitions: Vec<(usize, usize, String)>,
-        update_time: usize,
+        // update_time: usize,
         start_index: usize,
     ) -> Self {
         AnimationSM {
             animations,
             transitions,
-            update_time,
+            // update_time,
             start_index,
             current_anim: start_index,
         }

@@ -1,4 +1,4 @@
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use std::rc::Rc;
 
 use crate::animation::*;
@@ -13,19 +13,57 @@ pub fn player_anim(sprite_sheet: &Rc<Texture>, frame_count: usize) -> Sprite {
     Sprite::new(
         &sprite_sheet,
         AnimationSM::new(
-            vec![Animation::new(
-                vec![Rect {
-                    x: 502,
-                    y: 991,
-                    w: 36,
-                    h: 25,
-                }],
-                vec![60],
-                frame_count,
-                true,
-            )],
-            vec![],
-            frame_count,
+            vec![
+                Animation::new(
+                    vec![Rect {
+                        x: 502,
+                        y: 991,
+                        w: 36,
+                        h: 25,
+                    }],
+                    vec![60],
+                    frame_count,
+                    true,
+                ),
+                Animation::new(
+                    vec![
+                        Rect {
+                            x: 865,
+                            y: 974,
+                            w: 36,
+                            h: 25,
+                        },
+                        Rect {
+                            x: 865,
+                            y: 999,
+                            w: 36,
+                            h: 25,
+                        },
+                        Rect {
+                            x: 901,
+                            y: 999,
+                            w: 36,
+                            h: 25,
+                        },
+                        Rect {
+                            x: 937,
+                            y: 999,
+                            w: 36,
+                            h: 25,
+                        },
+                        Rect {
+                            x: 973,
+                            y: 999,
+                            w: 36,
+                            h: 25,
+                        },
+                    ],
+                    vec![20, 20, 20, 20, 2000],
+                    frame_count,
+                    true,
+                ),
+            ],
+            vec![(0, 1, "die".to_string())],
             0,
         ),
         Vec2i(180, 500),
@@ -74,7 +112,6 @@ pub fn enemy_entity(sprite_sheet: &Rc<Texture>, frame_count: usize, pos: Vec2i) 
                     true,
                 )],
                 vec![],
-                frame_count,
                 0,
             ),
             pos,
@@ -89,7 +126,7 @@ pub fn enemy_entity(sprite_sheet: &Rc<Texture>, frame_count: usize, pos: Vec2i) 
             },
             0.0,
             3.0,
-            60,
+            20,
         ),
     )
 }
@@ -146,7 +183,6 @@ pub fn boulder_entity(
                     true,
                 )],
                 vec![],
-                frame_count,
                 0,
             ),
             pos,
@@ -222,7 +258,6 @@ pub fn rock_entity(sprite_sheet: &Rc<Texture>, frame_count: usize, pos: Vec2i) -
                     (1, 2, String::from("hit")),
                     (2, 3, String::from("hit")),
                 ],
-                frame_count,
                 0,
             ),
             pos,
@@ -237,7 +272,7 @@ pub fn rock_entity(sprite_sheet: &Rc<Texture>, frame_count: usize, pos: Vec2i) -
             },
             frame_count,
             true,
-            40,
+            16,
         ),
     )
 }

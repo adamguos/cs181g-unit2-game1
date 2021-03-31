@@ -10,6 +10,7 @@ pub struct Texture {
 }
 
 enum AlphaChannel {
+    #[allow(dead_code)]
     First,
     Last,
 }
@@ -40,6 +41,8 @@ impl Texture {
     pub fn buffer(&self) -> &[u8] {
         &self.image
     }
+
+    #[allow(dead_code)]
     pub fn valid_frame(&self, frame: Rect) -> bool {
         0 <= frame.x
             && (frame.x + frame.w as i32) <= (self.width as i32)
