@@ -111,7 +111,7 @@ fn main() {
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()
-            .with_title("Unit2Game")
+            .with_title("Space Shooter")
             .with_inner_size(size)
             .with_min_inner_size(size)
             .with_resizable(false)
