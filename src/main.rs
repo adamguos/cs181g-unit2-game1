@@ -47,7 +47,6 @@ struct GameState {
     frame_count: usize,
     scroll: Vec2i,
     score: usize,
-    game_over: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -70,6 +69,41 @@ const ROCK_SZ: usize = 16;
 
 // player shoots every PROJ_DT frames
 const PROJ_DT: usize = 6;
+
+fn init(tileset: &Rc<Tileset>, sprite_sheet: &Rc<Texture>) -> GameState {
+    let mut tilemaps: Vec<Tilemap> = vec![];
+    for i in 0..(HEIGHT / TILEMAP_HT + 1) {
+        tilemaps.push(Tilemap::new(
+            Vec2i(0, HEIGHT as i32 - (i * TILEMAP_HT) as i32),
+            (WIDTH / TILE_SZ, TILEMAP_HT / TILE_SZ),
+            tileset,
+            vec![3169; (WIDTH / TILE_SZ) * (TILEMAP_HT / TILE_SZ)],
+        ));
+    }
+
+    // Player sprite
+    let player_sprite = assets::player_anim(sprite_sheet, 0);
+
+    // Player entity
+    let player = Entity {
+        collider: Mobile::player(180, 500),
+        position: Vec2i(180, 500),
+        sprite: player_sprite,
+    };
+
+    // Initial game state
+    GameState {
+        tilemaps,
+        terrains: vec![],
+        mobiles: vec![player],
+        walls: walls_vec(WIDTH as u16, HEIGHT as u16),
+        projs: vec![],
+        stage: GameStage::Rocks(true, 1),
+        frame_count: 0,
+        scroll: Vec2i(0, 0),
+        score: 0,
+    }
+}
 
 fn main() {
     let event_loop = EventLoop::new();
@@ -94,14 +128,11 @@ fn main() {
         "content/spaceshooter/Spritesheet/sheet.png",
     )));
     let font_sheet = Rc::new(Texture::with_file(Path::new("content/monospace_font.png")));
-
-    // Tiles
     let mut terrain_tile_ids = HashMap::new();
     terrain_tile_ids.insert(
         String::from("ground"),
         vec![3169, 2905, 1, 356, 268, 312, 61, 144],
     );
-
     let tile_sheet = Rc::new(Texture::with_file(Path::new("content/tilesheet.png")));
     let tileset = Rc::new(Tileset::new(
         vec![Tile { solid: false }; 88 * 69],
@@ -109,47 +140,8 @@ fn main() {
         terrain_tile_ids,
     ));
 
-    let mut tilemaps: Vec<Tilemap> = vec![];
-    for i in 0..(HEIGHT / TILEMAP_HT + 1) {
-        tilemaps.push(Tilemap::new(
-            Vec2i(0, HEIGHT as i32 - (i * TILEMAP_HT) as i32),
-            (WIDTH / TILE_SZ, TILEMAP_HT / TILE_SZ),
-            &tileset,
-            vec![3169; (WIDTH / TILE_SZ) * (TILEMAP_HT / TILE_SZ)],
-        ));
-    }
+    let mut state = init(&tileset, &sprite_sheet);
 
-    // Player sprite
-    let player_sprite = assets::player_anim(&sprite_sheet, 0);
-
-    // Player entity
-    let player = Entity {
-        collider: Mobile::player(180, 500),
-        position: Vec2i(180, 500),
-        sprite: player_sprite,
-    };
-
-    let mut flags = HashMap::new();
-    flags.insert("spawning_enemies".to_string(), true);
-    flags.insert("spawning_walls".to_string(), false);
-
-    let mut counters = HashMap::new();
-    counters.insert("enemy_cycles".to_string(), 0);
-    counters.insert("wall_waves".to_string(), 0);
-
-    // Initial game state
-    let mut state = GameState {
-        tilemaps,
-        terrains: vec![],
-        mobiles: vec![player],
-        walls: walls_vec(WIDTH as u16, HEIGHT as u16),
-        projs: vec![],
-        stage: GameStage::Rocks(true, 1),
-        frame_count: 0,
-        scroll: Vec2i(0, 0),
-        score: 0,
-        game_over: false,
-    };
     // How many unsimulated frames have we saved up?
     let mut available_time = 0.0;
     // Track end of the last frame
@@ -179,8 +171,7 @@ fn main() {
         // Game over event
         if let GameStage::GameOver(death_frame) = state.stage {
             if state.frame_count - death_frame >= 150 {
-                *control_flow = ControlFlow::Exit;
-                main();
+                state = init(&tileset, &sprite_sheet);
             }
         }
 
@@ -202,9 +193,7 @@ fn main() {
         while available_time >= DT {
             // Eat up one frame worth of time
             available_time -= DT;
-            if !state.game_over {
-                update_game(&mut state, &input, &sprite_sheet, &tile_sheet);
-            }
+            update_game(&mut state, &input, &sprite_sheet, &tile_sheet);
 
             // Increment the frame counter
             state.frame_count += 1;
